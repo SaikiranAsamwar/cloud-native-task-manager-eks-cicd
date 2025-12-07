@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Calendar</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar" class="active">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>📅 Calendar View</h1>
+        <p>View and manage tasks in calendar format</p>
+      </div>
+
+      <!-- Calendar Controls -->
+      <div class="calendar-controls">
+        <button class="btn btn-secondary" onclick="previousMonth()">
+          ◀ Previous
+        </button>
+        <h2 id="currentMonth">December 2025</h2>
+        <button class="btn btn-secondary" onclick="nextMonth()">Next ▶</button>
+      </div>
+
+      <!-- Calendar Grid -->
+      <div class="calendar-container">
+        <div class="calendar-header">
+          <div class="calendar-day-name">Sun</div>
+          <div class="calendar-day-name">Mon</div>
+          <div class="calendar-day-name">Tue</div>
+          <div class="calendar-day-name">Wed</div>
+          <div class="calendar-day-name">Thu</div>
+          <div class="calendar-day-name">Fri</div>
+          <div class="calendar-day-name">Sat</div>
+        </div>
+        <div id="calendarGrid" class="calendar-grid">
+          <!-- Calendar days will be generated here -->
+        </div>
+      </div>
+
+      <!-- Upcoming Tasks -->
+      <div class="dashboard-grid">
+        <div class="dashboard-section">
+          <h2>📋 Upcoming Tasks</h2>
+          <div id="upcomingTasks" class="tasks-list">
+            <p class="loading">Loading tasks...</p>
+          </div>
+        </div>
+
+        <div class="dashboard-section">
+          <h2>🔥 Today's Tasks</h2>
+          <div id="todayTasks" class="tasks-list">
+            <p class="loading">Loading tasks...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+  </body>
+</html>

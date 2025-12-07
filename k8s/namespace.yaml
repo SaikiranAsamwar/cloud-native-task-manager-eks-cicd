@@ -1,0 +1,9 @@
+# ================================================================
+# NAMESPACE - Isolate all resources for task-manager application
+# ================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: task-manager
+  labels:
+    name: task-manager

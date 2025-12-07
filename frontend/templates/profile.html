@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Profile</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile" class="active">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>👤 My Profile</h1>
+        <p>Manage your personal information and preferences</p>
+      </div>
+
+      <!-- Profile Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-content">
+            <h3>Tasks Completed</h3>
+            <p class="stat-number" id="profileCompletedTasks">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-content">
+            <h3>Tasks Pending</h3>
+            <p class="stat-number" id="profilePendingTasks">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-content">
+            <h3>Achievement Points</h3>
+            <p class="stat-number" id="achievementPoints">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-content">
+            <h3>Days Active</h3>
+            <p class="stat-number" id="daysActive">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Information -->
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h2>📝 Personal Information</h2>
+          <p class="card-description">Update your personal details</p>
+          <form id="profileForm">
+            <div class="setting-item">
+              <label for="profileFullName">Full Name:</label>
+              <input
+                type="text"
+                id="profileFullName"
+                placeholder="Enter full name"
+              />
+            </div>
+            <div class="setting-item">
+              <label for="profileUsername">Username:</label>
+              <input
+                type="text"
+                id="profileUsername"
+                placeholder="Enter username"
+              />
+            </div>
+            <div class="setting-item">
+              <label for="profileEmail">Email Address:</label>
+              <input type="email" id="profileEmail" placeholder="Enter email" />
+            </div>
+            <div class="setting-item">
+              <label for="profileBio">Bio:</label>
+              <textarea
+                id="profileBio"
+                rows="4"
+                placeholder="Tell us about yourself"
+              ></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">
+              <span class="btn-icon">💾</span>
+              <span class="btn-text">
+                <strong>Save Changes</strong>
+                <small>Update your profile information</small>
+              </span>
+            </button>
+          </form>
+        </div>
+
+        <div class="settings-card">
+          <h2>🔐 Security Settings</h2>
+          <p class="card-description">Manage your password and security</p>
+          <form id="passwordForm">
+            <div class="setting-item">
+              <label for="currentPassword">Current Password:</label>
+              <input
+                type="password"
+                id="currentPassword"
+                placeholder="Enter current password"
+              />
+            </div>
+            <div class="setting-item">
+              <label for="newPassword">New Password:</label>
+              <input
+                type="password"
+                id="newPassword"
+                placeholder="Enter new password"
+              />
+            </div>
+            <div class="setting-item">
+              <label for="confirmPassword">Confirm Password:</label>
+              <input
+                type="password"
+                id="confirmPassword"
+                placeholder="Confirm new password"
+              />
+            </div>
+            <button type="submit" class="btn btn-danger btn-full">
+              <span class="btn-icon">🔒</span>
+              <span class="btn-text">
+                <strong>Change Password</strong>
+                <small>Update your account password</small>
+              </span>
+            </button>
+          </form>
+        </div>
+
+        <div class="settings-card">
+          <h2>🎨 Preferences</h2>
+          <p class="card-description">Customize your experience</p>
+          <div class="setting-item">
+            <label for="profileLanguage">Language:</label>
+            <select id="profileLanguage">
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="profileTimezone">Timezone:</label>
+            <select id="profileTimezone">
+              <option value="UTC">UTC</option>
+              <option value="EST">Eastern Time</option>
+              <option value="PST">Pacific Time</option>
+              <option value="GMT">GMT</option>
+            </select>
+          </div>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="emailNotifications" checked />
+            <label for="emailNotifications">Email Notifications</label>
+          </div>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="taskReminders" checked />
+            <label for="taskReminders">Task Reminders</label>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h2>📊 Activity Summary</h2>
+          <p class="card-description">Your recent activity overview</p>
+          <div class="info-item">
+            <span>Last Login:</span>
+            <strong id="lastLogin">Today, 10:30 AM</strong>
+          </div>
+          <div class="info-item">
+            <span>Account Created:</span>
+            <strong id="accountCreated">Dec 1, 2025</strong>
+          </div>
+          <div class="info-item">
+            <span>Total Tasks Created:</span>
+            <strong id="totalTasksCreated">0</strong>
+          </div>
+          <div class="info-item">
+            <span>Completion Rate:</span>
+            <strong id="completionRate">0%</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+  </body>
+</html>

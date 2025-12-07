@@ -1,0 +1,628 @@
+---
+# ================================================================
+# ANSIBLE PLAYBOOK - Install DevOps Tools on Master EC2 Instance
+# ================================================================
+# Optimized for: Amazon Linux 2
+#
+# This playbook installs and configures all necessary tools:
+# - Docker & Docker-Compose
+# - Jenkins (with plugins)
+# - SonarQube (with PostgreSQL)
+# - Kubernetes (kubectl, kubeadm, kubelet, minikube, helm)
+# - AWS CLI
+# - Prometheus & Grafana
+# - Git
+# - Python 3 & pip
+# - Additional monitoring tools
+#
+# Usage:
+#   ansible-playbook -i inventory.ini master.yml -v
+#   ansible-playbook -i inventory.ini master.yml --tags docker,jenkins
+#   ansible-playbook -i inventory.ini master.yml --check
+# ================================================================
+
+- name: Configure EC2 Master Node - Install All DevOps Tools
+  hosts: master
+  become: yes
+  gather_facts: yes
+
+  vars:
+    jenkins_version: "latest"
+    sonarqube_version: "10.0"
+    docker_compose_version: "v2.20.0"
+    kubectl_version: "latest"
+    nodejs_version: "18"
+    aws_cli_version: "2"
+    ansible_python_interpreter: /usr/bin/python3
+
+  pre_tasks:
+    - name: Update system packages (Amazon Linux 2)
+      yum:
+        name: "*"
+        state: latest
+      tags: always
+
+    - name: Install Python3 and pip
+      yum:
+        name:
+          - python3
+          - python3-pip
+          - python3-devel
+        state: present
+      tags: always
+
+    - name: Install system dependencies
+      yum:
+        name:
+          - curl
+          - wget
+          - git
+          - ca-certificates
+          - openssl-devel
+          - libffi-devel
+          - gcc
+          - make
+          - jq
+          - net-tools
+          - vim
+          - nano
+          - htop
+          - unzip
+          - which
+          - findutils
+        state: present
+      tags: always
+
+  tasks:
+    # ============================================================
+    # DOCKER & DOCKER COMPOSE
+    # ============================================================
+    - name: Install Docker (Amazon Linux 2)
+      yum:
+        name: docker
+        state: present
+      tags: docker
+
+    - name: Install Docker Compose
+      shell: |
+        curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+      args:
+        creates: /usr/local/bin/docker-compose
+      tags: docker
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      tags: docker
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+      tags: docker
+
+    # ============================================================
+    # JENKINS
+    # ============================================================
+    - name: Install Java OpenJDK 11 (Amazon Linux 2)
+      yum:
+        name: java-11-openjdk
+        state: present
+      tags: jenkins
+
+    - name: Add Jenkins repository (Amazon Linux 2)
+      shell: |
+        wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+        rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+      args:
+        creates: /etc/yum.repos.d/jenkins.repo
+      tags: jenkins
+
+    - name: Install Jenkins
+      yum:
+        name: jenkins
+        state: present
+      tags: jenkins
+
+    - name: Start and enable Jenkins service
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
+      tags: jenkins
+
+    - name: Wait for Jenkins to be ready
+      uri:
+        url: "http://localhost:8080"
+        status_code: 200
+        follow_redirects: yes
+      register: jenkins_status
+      until: jenkins_status.status == 200
+      retries: 30
+      delay: 10
+      tags: jenkins
+
+    - name: Get Jenkins initial admin password
+      slurp:
+        src: /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_admin_password
+      tags: jenkins
+
+    - name: Display Jenkins initial admin password
+      debug:
+        msg: "Jenkins Initial Admin Password: {{ jenkins_admin_password['content'] | b64decode }}"
+      tags: jenkins
+
+    - name: Create Jenkins systemd override directory
+      file:
+        path: /etc/systemd/system/jenkins.service.d
+        state: directory
+      tags: jenkins
+
+    - name: Configure Jenkins memory settings
+      copy:
+        content: |
+          [Service]
+          Environment="JENKINS_JAVA_OPTIONS=-Xmx2g -Xms512m"
+        dest: /etc/systemd/system/jenkins.service.d/override.conf
+      notify: Reload and restart Jenkins
+      tags: jenkins
+
+    # ============================================================
+    # SONARQUBE & POSTGRESQL
+    # ============================================================
+    - name: Install PostgreSQL (Amazon Linux 2)
+      yum:
+        name:
+          - postgresql
+          - postgresql-server
+          - postgresql-devel
+          - python3-psycopg2
+        state: present
+      tags: sonarqube
+
+    - name: Initialize PostgreSQL database
+      shell: /usr/bin/postgresql-setup initdb
+      args:
+        creates: /var/lib/pgsql/data/postgresql.conf
+      tags: sonarqube
+
+    - name: Start and enable PostgreSQL service
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+      tags: sonarqube
+
+    - name: Create SonarQube database user
+      postgresql_user:
+        name: sonarqube
+        password: SonarQube@2024Secure
+        state: present
+      become_user: postgres
+      tags: sonarqube
+
+    - name: Create SonarQube database
+      postgresql_db:
+        name: sonarqube
+        owner: sonarqube
+        state: present
+      become_user: postgres
+      tags: sonarqube
+
+    - name: Create sonarqube system user
+      user:
+        name: sonarqube
+        shell: /sbin/nologin
+        home: /opt/sonarqube
+        createhome: yes
+        state: present
+      tags: sonarqube
+
+    - name: Download SonarQube
+      get_url:
+        url: "https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-{{ sonarqube_version }}-community.zip"
+        dest: /tmp/sonarqube-{{ sonarqube_version }}-community.zip
+      tags: sonarqube
+
+    - name: Extract SonarQube
+      unarchive:
+        src: "/tmp/sonarqube-{{ sonarqube_version }}-community.zip"
+        dest: /opt
+        remote_src: yes
+      tags: sonarqube
+
+    - name: Create SonarQube symlink
+      file:
+        src: "/opt/sonarqube-{{ sonarqube_version }}-community"
+        dest: /opt/sonarqube
+        state: link
+      tags: sonarqube
+
+    - name: Set SonarQube permissions
+      file:
+        path: /opt/sonarqube
+        owner: sonarqube
+        group: sonarqube
+        recurse: yes
+      tags: sonarqube
+
+    - name: Configure SonarQube properties
+      lineinfile:
+        path: /opt/sonarqube/conf/sonar.properties
+        regexp: "^#sonar.jdbc.url=jdbc:postgresql"
+        line: "sonar.jdbc.url=jdbc:postgresql://localhost:5432/sonarqube"
+        state: present
+      tags: sonarqube
+
+    - name: Configure SonarQube database user
+      lineinfile:
+        path: /opt/sonarqube/conf/sonar.properties
+        regexp: "^#sonar.jdbc.username"
+        line: "sonar.jdbc.username=sonarqube"
+        state: present
+      tags: sonarqube
+
+    - name: Configure SonarQube database password
+      lineinfile:
+        path: /opt/sonarqube/conf/sonar.properties
+        regexp: "^#sonar.jdbc.password"
+        line: "sonar.jdbc.password=SonarQube@2024Secure"
+        state: present
+      tags: sonarqube
+
+    - name: Create SonarQube systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=SonarQube service
+          After=syslog.target network.target postgresql.service
+          Wants=postgresql.service
+
+          [Service]
+          Type=forking
+          ExecStart=/opt/sonarqube/bin/linux-x86-64/sonar.sh start
+          ExecStop=/opt/sonarqube/bin/linux-x86-64/sonar.sh stop
+          ExecReload=/opt/sonarqube/bin/linux-x86-64/sonar.sh restart
+          User=sonarqube
+          Group=sonarqube
+          Restart=on-failure
+          RestartSec=10
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/sonarqube.service
+      notify: Reload systemd and start SonarQube
+      tags: sonarqube
+
+    - name: Increase system limits for SonarQube
+      copy:
+        content: |
+          sonarqube - nofile 65536
+          sonarqube - nproc 4096
+        dest: /etc/security/limits.d/99-sonarqube.conf
+      tags: sonarqube
+
+    # ============================================================
+    # KUBERNETES TOOLS
+    # ============================================================
+    - name: Add Kubernetes repository (Amazon Linux 2)
+      yum_repository:
+        name: kubernetes
+        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+      tags: kubernetes
+
+    - name: Install kubectl, kubeadm, and kubelet
+      yum:
+        name:
+          - kubectl
+          - kubeadm
+          - kubelet
+        state: present
+      tags: kubernetes
+
+    - name: Start and enable kubelet service
+      systemd:
+        name: kubelet
+        state: started
+        enabled: yes
+      tags: kubernetes
+
+    - name: Download and install Minikube
+      shell: |
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        install minikube-linux-amd64 /usr/local/bin/minikube
+        rm minikube-linux-amd64
+      args:
+        creates: /usr/local/bin/minikube
+      tags: kubernetes
+
+    - name: Download and install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+      tags: kubernetes
+
+    # ============================================================
+    # AWS CLI
+    # ============================================================
+    - name: Install AWS CLI v2
+      shell: |
+        cd /tmp
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        ./aws/install
+        rm -rf aws awscliv2.zip
+      args:
+        creates: /usr/local/bin/aws
+      tags: aws-cli
+
+    - name: Configure AWS CLI directory for ec2-user
+      file:
+        path: /home/ec2-user/.aws
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0700'
+      tags: aws-cli
+
+    # ============================================================
+    # PROMETHEUS
+    # ============================================================
+    - name: Create prometheus system user
+      user:
+        name: prometheus
+        shell: /sbin/nologin
+        home: /etc/prometheus
+        createhome: no
+        state: present
+      tags: prometheus
+
+    - name: Download Prometheus
+      shell: |
+        cd /tmp
+        wget https://github.com/prometheus/prometheus/releases/download/v2.48.0/prometheus-2.48.0.linux-amd64.tar.gz
+        tar xvfz prometheus-2.48.0.linux-amd64.tar.gz
+        cp prometheus-2.48.0.linux-amd64/prometheus /usr/local/bin/
+        cp prometheus-2.48.0.linux-amd64/promtool /usr/local/bin/
+        mkdir -p /etc/prometheus/rules.d
+        cp prometheus-2.48.0.linux-amd64/prometheus.yml /etc/prometheus/
+        chown -R prometheus:prometheus /etc/prometheus /var/lib/prometheus
+        rm -rf prometheus-2.48.0.linux-amd64*
+      args:
+        creates: /usr/local/bin/prometheus
+      tags: prometheus
+
+    - name: Create Prometheus data directory
+      file:
+        path: /var/lib/prometheus
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: '0755'
+      tags: prometheus
+
+    - name: Create Prometheus systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Prometheus service
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=prometheus
+          ExecStart=/usr/local/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/var/lib/prometheus/
+          Restart=always
+          RestartSec=5
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/prometheus.service
+      notify: Reload systemd and start Prometheus
+      tags: prometheus
+
+    # ============================================================
+    # GRAFANA
+    # ============================================================
+    - name: Add Grafana repository (Amazon Linux 2)
+      yum_repository:
+        name: grafana
+        baseurl: https://packages.grafana.com/oss/rpm
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://packages.grafana.com/gpg.key
+      tags: grafana
+
+    - name: Install Grafana
+      yum:
+        name: grafana
+        state: present
+      tags: grafana
+
+    - name: Start and enable Grafana service
+      systemd:
+        name: grafana-server
+        state: started
+        enabled: yes
+      tags: grafana
+
+    # ============================================================
+    # PYTHON & PIP PACKAGES
+    # ============================================================
+    - name: Install Python development packages
+      yum:
+        name:
+          - python3-devel
+          - gcc
+          - libffi-devel
+        state: present
+      tags: python
+
+    - name: Upgrade pip, setuptools, and wheel
+      pip:
+        name:
+          - pip
+          - setuptools
+          - wheel
+        state: latest
+        executable: pip3
+      tags: python
+
+    - name: Install common Python packages
+      pip:
+        name:
+          - ansible
+          - boto3
+          - botocore
+          - docker
+          - kubernetes
+          - requests
+        state: present
+        executable: pip3
+      tags: python
+
+    # ============================================================
+    # GIT CONFIGURATION
+    # ============================================================
+    - name: Install and configure Git
+      yum:
+        name: git
+        state: present
+      tags: git
+
+    - name: Configure Git (global user email)
+      shell: git config --global user.email "devops@example.com"
+      tags: git
+
+    - name: Configure Git (global user name)
+      shell: git config --global user.name "DevOps Team"
+      tags: git
+
+    - name: Create SSH key directory for ec2-user
+      file:
+        path: /home/ec2-user/.ssh
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0700'
+      tags: git
+
+    # ============================================================
+    # ADDITIONAL MONITORING & TOOLS
+    # ============================================================
+    - name: Create node_exporter system user
+      user:
+        name: node_exporter
+        shell: /sbin/nologin
+        home: /var/lib/node_exporter
+        createhome: no
+      tags: monitoring
+
+    - name: Download and install Node Exporter
+      shell: |
+        cd /tmp
+        wget https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz
+        tar xvfz node_exporter-1.6.1.linux-amd64.tar.gz
+        cp node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/
+        rm -rf node_exporter-1.6.1.linux-amd64*
+      args:
+        creates: /usr/local/bin/node_exporter
+      tags: monitoring
+
+    - name: Create Node Exporter systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Node Exporter
+          After=network.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter
+
+          Restart=on-failure
+          RestartSec=10s
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/node_exporter.service
+      notify: Reload systemd and start Node Exporter
+      tags: monitoring
+
+    - name: Install Nginx
+      yum:
+        name: nginx
+        state: present
+      tags: nginx
+
+    - name: Start and enable Nginx service
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+      tags: nginx
+
+  handlers:
+    - name: Reload and restart Jenkins
+      systemd:
+        daemon_reload: yes
+        name: jenkins
+        state: restarted
+
+    - name: Reload systemd and start SonarQube
+      systemd:
+        daemon_reload: yes
+        name: sonarqube
+        state: started
+        enabled: yes
+
+    - name: Reload systemd and start Prometheus
+      systemd:
+        daemon_reload: yes
+        name: prometheus
+        state: started
+        enabled: yes
+
+    - name: Reload systemd and start Node Exporter
+      systemd:
+        daemon_reload: yes
+        name: node_exporter
+        state: started
+        enabled: yes
+
+  post_tasks:
+    - name: Display installation summary
+      debug:
+        msg: |
+          ============================================================
+          DevOps Master Node Setup Complete!
+          ============================================================
+          
+          Installed Services:
+          - Docker: http://localhost:2375
+          - Jenkins: http://localhost:8080
+          - SonarQube: http://localhost:9000
+          - Prometheus: http://localhost:9090
+          - Grafana: http://localhost:3000
+          - Node Exporter: http://localhost:9100
+          
+          Next Steps:
+          1. Access Jenkins at http://<EC2-IP>:8080
+          2. Use password: {{ jenkins_admin_password['content'] | b64decode }}
+          3. Configure Jenkins plugins and credentials
+          4. Access SonarQube at http://<EC2-IP>:9000 (admin/admin)
+          5. Update SonarQube password
+          
+          ============================================================
+      tags: always

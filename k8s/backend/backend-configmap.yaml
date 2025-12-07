@@ -1,0 +1,12 @@
+# ================================================================
+# CONFIGMAP - Store non-sensitive configuration
+# ================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: task-manager
+data:
+  FLASK_ENV: "production"
+  DATABASE_TYPE: "postgresql"
+  API_TIMEOUT: "30"

@@ -1,0 +1,19 @@
+# ================================================================
+# SERVICE - Expose PostgreSQL internally for backend pods
+# ================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: task-manager
+  labels:
+    app: postgres
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app: postgres
+  type: ClusterIP

@@ -1,0 +1,141 @@
+# Docker Compose for Local Development
+# This allows you to run the entire stack locally without AWS
+
+version: '3.8'
+
+services:
+  # ================================================================
+  # PostgreSQL Database
+  # ================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: task-manager-postgres
+    environment:
+      POSTGRES_USER: taskmanager
+      POSTGRES_PASSWORD: TaskManager@2024Dev
+      POSTGRES_DB: taskmanager_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskmanager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - task-manager-network
+
+  # ================================================================
+  # Backend Service (Flask API)
+  # ================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: task-manager-backend
+    environment:
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://taskmanager:TaskManager@2024Dev@postgres:5432/taskmanager_db
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/users"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - task-manager-network
+
+  # ================================================================
+  # Frontend Service (Nginx + Static Files)
+  # ================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: task-manager-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - task-manager-network
+
+  # ================================================================
+  # SonarQube (Code Analysis)
+  # ================================================================
+  sonarqube:
+    image: sonarqube:latest
+    container_name: task-manager-sonarqube
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonarqube
+      SONAR_JDBC_USERNAME: taskmanager
+      SONAR_JDBC_PASSWORD: TaskManager@2024Dev
+    ports:
+      - "9000:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - task-manager-network
+
+  # ================================================================
+  # Prometheus (Monitoring)
+  # ================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: task-manager-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - task-manager-network
+
+  # ================================================================
+  # Grafana (Visualization)
+  # ================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: task-manager-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: GrafanaAdmin@2024
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - task-manager-network
+
+volumes:
+  postgres_data:
+  sonarqube_data:
+  sonarqube_logs:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  task-manager-network:
+    driver: bridge

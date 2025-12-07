@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Tasks</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks" class="active">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>Tasks Management</h1>
+        <p>Create, track, and manage your tasks efficiently</p>
+      </div>
+
+      <!-- Filter Section -->
+      <div class="filter-section">
+        <div class="filter-group">
+          <label for="userFilter">Filter by User:</label>
+          <select id="userFilter">
+            <option value="">All Users</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="statusFilter">Filter by Status:</label>
+          <select id="statusFilter">
+            <option value="">All Tasks</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="priorityFilter">Filter by Priority:</label>
+          <select id="priorityFilter">
+            <option value="">All Priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Add Task Form -->
+      <div class="form-container">
+        <h2>Create New Task</h2>
+        <form id="taskForm">
+          <div class="form-group">
+            <label for="taskUser">Assign to User:</label>
+            <select id="taskUser" required>
+              <option value="">Select a user...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="taskTitle">Task Title:</label>
+            <input
+              type="text"
+              id="taskTitle"
+              placeholder="Enter task title"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="taskDescription">Description:</label>
+            <textarea
+              id="taskDescription"
+              placeholder="Enter task description"
+              rows="3"
+            ></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="taskPriority">Priority:</label>
+              <select id="taskPriority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="taskDueDate">Due Date:</label>
+              <input type="datetime-local" id="taskDueDate" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Create Task</button>
+        </form>
+      </div>
+
+      <!-- Tasks List -->
+      <div class="list-container">
+        <h2>All Tasks</h2>
+        <div id="tasksList" class="items-grid">
+          <p class="loading">Loading tasks...</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/tasks.js') }}"></script>
+  </body>
+</html>

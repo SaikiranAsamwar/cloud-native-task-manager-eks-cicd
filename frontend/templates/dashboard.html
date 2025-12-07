@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Dashboard</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard" class="active">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Dashboard Header -->
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>Welcome to your Task Manager - Overview of your activities</p>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-content">
+            <h3>Total Users</h3>
+            <p class="stat-number" id="totalUsers">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📝</div>
+          <div class="stat-content">
+            <h3>Total Tasks</h3>
+            <p class="stat-number" id="totalTasks">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-content">
+            <h3>Completed Tasks</h3>
+            <p class="stat-number" id="completedTasks">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏳</div>
+          <div class="stat-content">
+            <h3>Pending Tasks</h3>
+            <p class="stat-number" id="pendingTasks">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="dashboard-grid">
+        <div class="dashboard-section">
+          <h2>Recent Tasks</h2>
+          <div id="recentTasks" class="tasks-list">
+            <p class="loading">Loading...</p>
+          </div>
+        </div>
+
+        <div class="dashboard-section">
+          <h2>Quick Actions</h2>
+          <div class="quick-actions">
+            <a href="/users" class="action-btn">➕ Add User</a>
+            <a href="/tasks" class="action-btn">➕ Add Task</a>
+            <a href="/analytics" class="action-btn">📊 View Analytics</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  </body>
+</html>

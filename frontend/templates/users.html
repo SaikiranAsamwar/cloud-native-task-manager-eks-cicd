@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Users</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users" class="active">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>Users Management</h1>
+        <p>Create, manage, and organize your team members</p>
+      </div>
+
+      <!-- Add User Form -->
+      <div class="form-container">
+        <h2>Add New User</h2>
+        <form id="userForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="username">Username:</label>
+              <input
+                type="text"
+                id="username"
+                placeholder="Enter username"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="email">Email:</label>
+              <input
+                type="email"
+                id="email"
+                placeholder="Enter email"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="fullName">Full Name:</label>
+            <input
+              type="text"
+              id="fullName"
+              placeholder="Enter full name"
+              required
+            />
+          </div>
+          <button type="submit" class="btn btn-primary">Create User</button>
+        </form>
+      </div>
+
+      <!-- Users List -->
+      <div class="list-container">
+        <h2>All Users</h2>
+        <div id="usersList" class="items-grid">
+          <p class="loading">Loading users...</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/users.js') }}"></script>
+  </body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Analytics</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics" class="active">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>Analytics & Reports</h1>
+        <p>
+          View comprehensive statistics and insights about your tasks and team
+          performance
+        </p>
+      </div>
+
+      <!-- Analytics Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">📊</div>
+          <div class="stat-content">
+            <h3>Completion Rate</h3>
+            <p class="stat-number" id="completionRate">0%</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-content">
+            <h3>High Priority Tasks</h3>
+            <p class="stat-number" id="highPriorityCount">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⏰</div>
+          <div class="stat-content">
+            <h3>Overdue Tasks</h3>
+            <p class="stat-number" id="overdueCount">0</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👤</div>
+          <div class="stat-content">
+            <h3>Active Users</h3>
+            <p class="stat-number" id="activeUsers">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="analytics-grid">
+        <div class="analytics-card">
+          <h2>Task Distribution by Priority</h2>
+          <div id="priorityChart" class="chart-placeholder">
+            <div class="priority-bars">
+              <div class="bar-item">
+                <span>High</span>
+                <div class="bar" id="highBar" style="width: 0%"></div>
+              </div>
+              <div class="bar-item">
+                <span>Medium</span>
+                <div class="bar" id="mediumBar" style="width: 0%"></div>
+              </div>
+              <div class="bar-item">
+                <span>Low</span>
+                <div class="bar" id="lowBar" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <h2>Task Completion Status</h2>
+          <div id="statusChart" class="chart-placeholder">
+            <div class="status-breakdown">
+              <div class="status-item">
+                <span class="status-label">Completed</span>
+                <span class="status-value" id="completedCount">0</span>
+              </div>
+              <div class="status-item">
+                <span class="status-label">Pending</span>
+                <span class="status-value" id="pendingCount">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task Summary Table -->
+      <div class="list-container">
+        <h2>User Task Summary</h2>
+        <div id="userSummary" class="table-container">
+          <p class="loading">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+  </body>
+</html>

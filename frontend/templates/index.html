@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Full Stack Python App</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header>
+        <h1>📋 Task Manager</h1>
+        <p class="subtitle">A Full Stack Python Application</p>
+      </header>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="users-tab">Users</button>
+        <button class="tab-btn" data-tab="tasks-tab">Tasks</button>
+      </nav>
+
+      <!-- Users Section -->
+      <section id="users-tab" class="tab-content active">
+        <div class="section-header">
+          <h2>Users Management</h2>
+        </div>
+
+        <!-- Add New User Form -->
+        <div class="form-container">
+          <h3>Add New User</h3>
+          <form id="userForm">
+            <div class="form-group">
+              <label for="username">Username:</label>
+              <input type="text" id="username" name="username" required />
+            </div>
+            <div class="form-group">
+              <label for="email">Email:</label>
+              <input type="email" id="email" name="email" required />
+            </div>
+            <div class="form-group">
+              <label for="fullName">Full Name:</label>
+              <input type="text" id="fullName" name="fullName" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Create User</button>
+          </form>
+        </div>
+
+        <!-- Users List -->
+        <div class="list-container">
+          <h3>All Users</h3>
+          <div id="usersList" class="items-list">
+            <p class="loading">Loading users...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tasks Section -->
+      <section id="tasks-tab" class="tab-content">
+        <div class="section-header">
+          <h2>Tasks Management</h2>
+        </div>
+
+        <!-- Filter by User -->
+        <div class="filter-container">
+          <label for="userFilter">Filter by User:</label>
+          <select id="userFilter">
+            <option value="">All Users</option>
+          </select>
+        </div>
+
+        <!-- Add New Task Form -->
+        <div class="form-container">
+          <h3>Add New Task</h3>
+          <form id="taskForm">
+            <div class="form-group">
+              <label for="taskUser">Select User:</label>
+              <select id="taskUser" name="taskUser" required>
+                <option value="">Choose a user...</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="taskTitle">Title:</label>
+              <input type="text" id="taskTitle" name="taskTitle" required />
+            </div>
+            <div class="form-group">
+              <label for="taskDescription">Description:</label>
+              <textarea id="taskDescription" name="taskDescription"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="taskPriority">Priority:</label>
+                <select id="taskPriority" name="taskPriority">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="taskDueDate">Due Date:</label>
+                <input
+                  type="datetime-local"
+                  id="taskDueDate"
+                  name="taskDueDate"
+                />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Create Task</button>
+          </form>
+        </div>
+
+        <!-- Tasks List -->
+        <div class="list-container">
+          <h3>All Tasks</h3>
+          <div id="tasksList" class="items-list">
+            <p class="loading">Loading tasks...</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Settings</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings" class="active">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>Settings</h1>
+        <p>
+          Configure your Task Manager preferences and manage application data
+        </p>
+      </div>
+
+      <!-- Settings Sections -->
+      <div class="settings-grid">
+        <!-- General Settings -->
+        <div class="settings-card">
+          <h2>⚙️ General Settings</h2>
+          <p class="card-description">Customize your application preferences</p>
+          <div class="setting-item">
+            <label>Application Theme:</label>
+            <select id="themeSelect">
+              <option value="light">Light Mode</option>
+              <option value="dark">Dark Mode</option>
+              <option value="auto">Auto (System)</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>Items Per Page:</label>
+            <select id="itemsPerPage">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>Auto-refresh Interval (seconds):</label>
+            <input
+              type="number"
+              id="refreshInterval"
+              value="30"
+              min="5"
+              max="300"
+            />
+          </div>
+        </div>
+
+        <!-- Notification Settings -->
+        <div class="settings-card">
+          <h2>🔔 Notification Settings</h2>
+          <p class="card-description">Configure notification preferences</p>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="notifyOnTaskCreate" checked />
+            <label for="notifyOnTaskCreate"
+              >Notify when tasks are created</label
+            >
+          </div>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="notifyOnTaskComplete" checked />
+            <label for="notifyOnTaskComplete"
+              >Notify when tasks are completed</label
+            >
+          </div>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="notifyOnDueDate" />
+            <label for="notifyOnDueDate">Notify about due dates</label>
+          </div>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="notifyOnUserCreate" />
+            <label for="notifyOnUserCreate"
+              >Notify when users are created</label
+            >
+          </div>
+        </div>
+
+        <!-- Display Settings -->
+        <div class="settings-card">
+          <h2>🎨 Display Settings</h2>
+          <p class="card-description">Adjust date, time, and view settings</p>
+          <div class="setting-item">
+            <label>Date Format:</label>
+            <select id="dateFormat">
+              <option value="short">MM/DD/YYYY</option>
+              <option value="long">MMMM DD, YYYY</option>
+              <option value="iso">YYYY-MM-DD</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>Time Format:</label>
+            <select id="timeFormat">
+              <option value="12h">12 Hour (AM/PM)</option>
+              <option value="24h">24 Hour</option>
+            </select>
+          </div>
+          <div class="setting-item checkbox">
+            <input type="checkbox" id="compactMode" />
+            <label for="compactMode">Compact View</label>
+          </div>
+        </div>
+
+        <!-- Data Management -->
+        <div class="settings-card">
+          <h2>📁 Data Management</h2>
+          <p class="card-description">
+            Manage your application data and database
+          </p>
+          <div class="button-group">
+            <button class="btn btn-secondary btn-full" onclick="exportData()">
+              <span class="btn-icon">📥</span>
+              <span class="btn-text">
+                <strong>Export Data</strong>
+                <small>Download all data as JSON</small>
+              </span>
+            </button>
+            <button class="btn btn-secondary btn-full" onclick="backupData()">
+              <span class="btn-icon">💾</span>
+              <span class="btn-text">
+                <strong>Backup Database</strong>
+                <small>Create database backup</small>
+              </span>
+            </button>
+            <button
+              class="btn btn-danger btn-full"
+              onclick="confirmClearData()"
+            >
+              <span class="btn-icon">🗑️</span>
+              <span class="btn-text">
+                <strong>Clear All Data</strong>
+                <small>Delete all users and tasks</small>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Database Info -->
+        <div class="settings-card">
+          <h2>ℹ️ Database Information</h2>
+          <p class="card-description">View current database statistics</p>
+          <div class="info-item">
+            <span>Database Type:</span>
+            <strong>SQLite</strong>
+          </div>
+          <div class="info-item">
+            <span>Users Count:</span>
+            <strong id="dbUsers">0</strong>
+          </div>
+          <div class="info-item">
+            <span>Tasks Count:</span>
+            <strong id="dbTasks">0</strong>
+          </div>
+          <div class="info-item">
+            <span>Last Updated:</span>
+            <strong id="lastUpdated">-</strong>
+          </div>
+        </div>
+
+        <!-- About -->
+        <div class="settings-card">
+          <h2>ℹ️ About</h2>
+          <p class="card-description">Application information and version</p>
+          <div class="info-item">
+            <span>Application:</span>
+            <strong>Task Manager</strong>
+          </div>
+          <div class="info-item">
+            <span>Version:</span>
+            <strong>1.0.0</strong>
+          </div>
+          <div class="info-item">
+            <span>Backend:</span>
+            <strong>Flask + SQLAlchemy</strong>
+          </div>
+          <div class="info-item">
+            <span>Frontend:</span>
+            <strong>HTML5 + CSS3 + JavaScript</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Settings Button -->
+      <div class="settings-actions">
+        <button class="btn btn-primary btn-large" onclick="saveSettings()">
+          💾 Save Settings
+        </button>
+        <button class="btn btn-secondary btn-large" onclick="resetSettings()">
+          ↺ Reset to Default
+        </button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+  </body>
+</html>

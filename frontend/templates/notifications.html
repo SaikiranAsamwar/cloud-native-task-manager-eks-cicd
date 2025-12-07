@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Notifications</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>🔔 Notifications</h1>
+        <p>Stay updated with your tasks and activities</p>
+      </div>
+
+      <!-- Notification Actions -->
+      <div class="notification-actions">
+        <button class="btn btn-secondary" onclick="markAllAsRead()">
+          ✓ Mark All as Read
+        </button>
+        <button class="btn btn-secondary" onclick="clearAllNotifications()">
+          🗑️ Clear All
+        </button>
+        <button class="btn btn-primary" onclick="refreshNotifications()">
+          ↻ Refresh
+        </button>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="filter-tabs">
+        <button class="tab-btn active" onclick="filterNotifications('all')">
+          All
+        </button>
+        <button class="tab-btn" onclick="filterNotifications('unread')">
+          Unread
+        </button>
+        <button class="tab-btn" onclick="filterNotifications('tasks')">
+          Tasks
+        </button>
+        <button class="tab-btn" onclick="filterNotifications('users')">
+          Users
+        </button>
+        <button class="tab-btn" onclick="filterNotifications('system')">
+          System
+        </button>
+      </div>
+
+      <!-- Notifications List -->
+      <div class="list-container">
+        <div id="notificationsList" class="notifications-list">
+          <!-- Sample Notifications -->
+          <div class="notification-item unread">
+            <div class="notification-icon task">📝</div>
+            <div class="notification-content">
+              <h4>New Task Assigned</h4>
+              <p>
+                You have been assigned a new high-priority task: "Complete
+                project documentation"
+              </p>
+              <span class="notification-time">5 minutes ago</span>
+            </div>
+            <div class="notification-actions-inline">
+              <button class="btn-icon-small" onclick="markAsRead(this)">
+                ✓
+              </button>
+              <button class="btn-icon-small" onclick="deleteNotification(this)">
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div class="notification-item unread">
+            <div class="notification-icon user">👤</div>
+            <div class="notification-content">
+              <h4>New User Added</h4>
+              <p>John Doe has been added to the system</p>
+              <span class="notification-time">15 minutes ago</span>
+            </div>
+            <div class="notification-actions-inline">
+              <button class="btn-icon-small" onclick="markAsRead(this)">
+                ✓
+              </button>
+              <button class="btn-icon-small" onclick="deleteNotification(this)">
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div class="notification-item">
+            <div class="notification-icon success">✅</div>
+            <div class="notification-content">
+              <h4>Task Completed</h4>
+              <p>Task "Update user interface" has been marked as completed</p>
+              <span class="notification-time">1 hour ago</span>
+            </div>
+            <div class="notification-actions-inline">
+              <button class="btn-icon-small" onclick="markAsRead(this)">
+                ✓
+              </button>
+              <button class="btn-icon-small" onclick="deleteNotification(this)">
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div class="notification-item">
+            <div class="notification-icon warning">⚠️</div>
+            <div class="notification-content">
+              <h4>Task Due Soon</h4>
+              <p>Task "Review code changes" is due in 2 hours</p>
+              <span class="notification-time">2 hours ago</span>
+            </div>
+            <div class="notification-actions-inline">
+              <button class="btn-icon-small" onclick="markAsRead(this)">
+                ✓
+              </button>
+              <button class="btn-icon-small" onclick="deleteNotification(this)">
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div class="notification-item">
+            <div class="notification-icon system">⚙️</div>
+            <div class="notification-content">
+              <h4>System Update</h4>
+              <p>New features have been added to the task manager</p>
+              <span class="notification-time">1 day ago</span>
+            </div>
+            <div class="notification-actions-inline">
+              <button class="btn-icon-small" onclick="markAsRead(this)">
+                ✓
+              </button>
+              <button class="btn-icon-small" onclick="deleteNotification(this)">
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+  </body>
+</html>

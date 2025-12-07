@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Manager - Reports</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav class="navbar">
+      <div class="nav-container">
+        <h1 class="logo">📋 Task Manager</h1>
+        <ul class="nav-links">
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/users">Users</a></li>
+          <li><a href="/tasks">Tasks</a></li>
+          <li><a href="/analytics">Analytics</a></li>
+          <li><a href="/reports" class="active">Reports</a></li>
+          <li><a href="/calendar">Calendar</a></li>
+          <li><a href="/profile">Profile</a></li>
+          <li><a href="/settings">Settings</a></li>
+          <li>
+            <a href="#" onclick="logout()" style="color: #f44336">🚪 Logout</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>📊 Reports & Export</h1>
+        <p>Generate detailed reports and export your data</p>
+      </div>
+
+      <!-- Report Options -->
+      <div class="stats-grid">
+        <div class="stat-card report-card" onclick="generateTaskReport()">
+          <div class="stat-icon">📝</div>
+          <div class="stat-content">
+            <h3>Task Report</h3>
+            <p class="card-description">Generate comprehensive task report</p>
+            <button class="btn btn-primary btn-small">Generate</button>
+          </div>
+        </div>
+
+        <div class="stat-card report-card" onclick="generateUserReport()">
+          <div class="stat-icon">👥</div>
+          <div class="stat-content">
+            <h3>User Report</h3>
+            <p class="card-description">Export user activity and statistics</p>
+            <button class="btn btn-primary btn-small">Generate</button>
+          </div>
+        </div>
+
+        <div
+          class="stat-card report-card"
+          onclick="generatePerformanceReport()"
+        >
+          <div class="stat-icon">📈</div>
+          <div class="stat-content">
+            <h3>Performance Report</h3>
+            <p class="card-description">Analyze team performance metrics</p>
+            <button class="btn btn-primary btn-small">Generate</button>
+          </div>
+        </div>
+
+        <div class="stat-card report-card" onclick="exportAllData()">
+          <div class="stat-icon">💾</div>
+          <div class="stat-content">
+            <h3>Full Export</h3>
+            <p class="card-description">Export all data as JSON/CSV</p>
+            <button class="btn btn-primary btn-small">Export</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Report Filters -->
+      <div class="form-container">
+        <h2>Custom Report Generator</h2>
+        <form id="reportForm">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reportType">Report Type:</label>
+              <select id="reportType">
+                <option value="summary">Summary Report</option>
+                <option value="detailed">Detailed Report</option>
+                <option value="comparison">Comparison Report</option>
+                <option value="trend">Trend Analysis</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="dateRange">Date Range:</label>
+              <select id="dateRange">
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="quarter">This Quarter</option>
+                <option value="year">This Year</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="startDate">Start Date:</label>
+              <input type="date" id="startDate" />
+            </div>
+            <div class="form-group">
+              <label for="endDate">End Date:</label>
+              <input type="date" id="endDate" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="exportFormat">Export Format:</label>
+            <select id="exportFormat">
+              <option value="pdf">PDF Document</option>
+              <option value="excel">Excel Spreadsheet</option>
+              <option value="csv">CSV File</option>
+              <option value="json">JSON Data</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-large">
+            Generate Custom Report
+          </button>
+        </form>
+      </div>
+
+      <!-- Recent Reports -->
+      <div class="list-container">
+        <h2>Recent Reports</h2>
+        <div id="recentReports" class="items-grid">
+          <div class="item-card">
+            <div class="item-header">
+              <h3 class="item-title">Monthly Task Summary</h3>
+              <span class="meta-tag">November 2025</span>
+            </div>
+            <p class="item-description">
+              Complete task overview for November including completion rates and
+              user statistics
+            </p>
+            <div class="item-actions">
+              <button class="btn btn-secondary btn-small">📥 Download</button>
+              <button class="btn btn-secondary btn-small">👁️ View</button>
+            </div>
+          </div>
+
+          <div class="item-card">
+            <div class="item-header">
+              <h3 class="item-title">User Performance Analysis</h3>
+              <span class="meta-tag">Last Week</span>
+            </div>
+            <p class="item-description">
+              Team performance metrics and individual contributions
+            </p>
+            <div class="item-actions">
+              <button class="btn btn-secondary btn-small">📥 Download</button>
+              <button class="btn btn-secondary btn-small">👁️ View</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+  </body>
+</html>

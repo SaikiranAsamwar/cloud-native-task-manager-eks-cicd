@@ -1,19 +1,60 @@
-# Docker Deployment on AWS EC2 (Amazon Linux 2023)
+# 🐳 Docker Deployment on AWS EC2 (Amazon Linux 2023)
 
-This guide provides step-by-step instructions to deploy the Python-DevOps application using Docker and Docker Compose on an AWS EC2 instance running Amazon Linux 2023.
+This guide provides step-by-step instructions to deploy the **Dockerized full-stack Python-DevOps application** using Docker and Docker Compose on an AWS EC2 instance running Amazon Linux 2023.
 
-## Table of Contents
+## 📌 Tech Stack
 
+- **Frontend**: Static UI served via Node.js `http-server`
+- **Backend**: Python (Flask)
+- **Database**: PostgreSQL 15
+- **Containerization**: Docker & Docker Compose
+- **Cloud**: AWS EC2 (Amazon Linux 2023)
+
+## 📁 Project Structure
+
+```text
+Python-DevOps/
+│
+├── docker-compose.yml
+├── DOCKER_DEPLOYMENT_AWS.md
+├── backend/
+│   ├── Dockerfile
+│   ├── config.py
+│   ├── run.py
+│   ├── requirements.txt
+│   ├── utils.py
+│   └── app/
+│       ├── __init__.py
+│       ├── models.py
+│       └── routes.py
+└── frontend/
+    ├── Dockerfile
+    ├── templates/
+    │   └── *.html
+    ├── css/
+    │   └── style.css
+    └── js/
+        └── *.js
+```
+
+## 📌 Table of Contents
+
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
 - [Prerequisites](#prerequisites)
+- [Quick Start (5 Steps)](#-quick-start-5-steps)
 - [EC2 Instance Setup](#ec2-instance-setup)
 - [Installing Docker and Docker Compose](#installing-docker-and-docker-compose)
 - [Deployment Steps](#deployment-steps)
 - [Accessing the Application](#accessing-the-application)
+- [Common Commands](#-common-commands)
 - [Environment Configuration](#environment-configuration)
+- [Architecture Explanation](#-architecture-explanation)
 - [Monitoring and Logs](#monitoring-and-logs)
 - [Troubleshooting](#troubleshooting)
 - [Security Considerations](#security-considerations)
 - [Cleanup](#cleanup)
+- [Additional Resources](#additional-resources)
 
 ## Prerequisites
 
@@ -21,6 +62,56 @@ This guide provides step-by-step instructions to deploy the Python-DevOps applic
 - Basic knowledge of AWS EC2, security groups, and SSH
 - Access to SSH key pair for your EC2 instance
 - Application source code available (GitHub repository or S3 bucket)
+
+## 🚀 Quick Start (5 Steps)
+
+If you already have an EC2 instance with Docker installed, deployment is simple:
+
+### 1️⃣ Update System & Install Git
+
+```bash
+sudo yum update -y
+sudo yum install git -y
+```
+
+### 2️⃣ Clone Repository
+
+```bash
+git clone https://github.com/SaikiranAsamwar/EC2-Python-Docker.git
+cd EC2-Python-Docker
+```
+
+### 3️⃣ Start & Enable Docker
+
+```bash
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+### 4️⃣ Install Docker Compose
+
+```bash
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+-o /usr/local/bin/docker-compose
+
+sudo chmod +x /usr/local/bin/docker-compose
+docker-compose --version
+```
+
+### 5️⃣ Build & Run Application
+
+```bash
+sudo docker-compose up -d --build
+sudo docker ps
+```
+
+✅ **Done!** Access the application at:
+- **Frontend**: http://<EC2_PUBLIC_IP>:3000
+- **Backend**: http://<EC2_PUBLIC_IP>:5000
+
+> Ensure EC2 Security Group allows inbound traffic on **ports 3000, 5000, and 5432**.
+
+---
 
 ## EC2 Instance Setup
 
@@ -180,14 +271,13 @@ curl http://localhost:5000
 curl http://localhost:3000
 ```
 
-## Accessing the Application
-
 Once deployed, access your application using your EC2 instance's public IP:
 
-```
-Frontend:    http://your-instance-public-ip:3000
-Backend API: http://your-instance-public-ip:5000
-```
+| Service | URL |
+|---------|-----|
+| Frontend | http://your-instance-public-ip:3000 |
+| Backend API | http://your-instance-public-ip:5000 |
+| Database | postgresql://your-instance-ip:5432 |
 
 To find your public IP:
 ```bash
@@ -197,7 +287,62 @@ curl http://169.254.169.254/latest/meta-data/public-ipv4
 # Or from AWS Console: EC2 → Instances → Your Instance
 ```
 
-## Environment Configuration
+---
+
+## 🔁 Common Docker Compose Commands
+
+```bash
+# Build images and start containers
+docker-compose up -d --build
+
+# Stop services
+docker-compose down
+
+# Restart services
+docker-compose restart
+
+# View logs
+docker-compose logs -f
+
+# Check running containers
+docker-compose ps
+
+# Execute command in container
+docker-compose exec backend python run.py
+
+# Rebuild without starting
+docker-compose build --no-cache
+```
+
+---
+
+## 🧠 Architecture Explanation
+
+The application uses **Docker Compose** to orchestrate **three main containers**:
+
+1. **Frontend Container** (Node.js)
+   - Serves static files via `http-server`
+   - Listens on port 3000
+   - Contains HTML, CSS, and JavaScript assets
+
+2. **Backend Container** (Python Flask)
+   - RESTful API server
+   - Listens on port 5000
+   - Connects to PostgreSQL database
+
+3. **Database Container** (PostgreSQL 15)
+   - Persistent data storage
+   - Listens on port 5432
+   - Uses Docker volumes for persistence
+
+### Container Communication
+
+- Containers communicate over a **user-defined bridge network** (`devops_network`)
+- Allows inter-container communication using service names (e.g., `backend:5000`)
+- Persistent data stored using **Docker volumes** (`db_data`)
+- Environment variables passed through `docker-compose.yml`
+
+---
 
 ### Modify Docker Compose Settings
 
@@ -369,7 +514,16 @@ docker-compose ps
    # Use AWS Secrets Manager or .env files (not in version control)
    ```
 
-2. **Enable HTTPS**
+2. **Environment Variables**
+   - Never commit `.env` files to GitHub
+   - Use AWS Secrets Manager for production credentials
+   - Store sensitive data outside the repository
+
+3. **Image Tags**
+   - Always use **explicit image tags** (avoid `latest`)
+   - Tag images with version numbers (e.g., `python:3.11`, `postgres:15`)
+
+4. **Enable HTTPS**
    ```bash
    # Install Nginx reverse proxy with SSL
    sudo yum install nginx -y
@@ -379,23 +533,23 @@ docker-compose ps
    certbot certonly --nginx -d your-domain.com
    ```
 
-3. **Update Security Group Rules**
+5. **Update Security Group Rules**
    - Restrict SSH access to your IP only
    - Remove unnecessary open ports
    - Use security group descriptions
 
-4. **Set Strong Database Passwords**
+6. **Set Strong Database Passwords**
    ```bash
    # Generate strong password
    openssl rand -base64 32
    ```
 
-5. **Enable Docker Content Trust**
+7. **Enable Docker Content Trust**
    ```bash
    export DOCKER_CONTENT_TRUST=1
    ```
 
-6. **Backup Database Regularly**
+8. **Backup Database Regularly**
    ```bash
    # Create backup
    docker-compose exec db pg_dump -U devops_user devops_db > backup.sql
@@ -404,11 +558,30 @@ docker-compose ps
    docker-compose exec -T db psql -U devops_user devops_db < backup.sql
    ```
 
-7. **Monitor and Audit Logs**
+9. **Monitor and Audit Logs**
    ```bash
    # Check CloudWatch logs in AWS Console
    # Set up CloudWatch agent for deeper monitoring
    ```
+
+10. **Frontend Server**
+    - Replace Node `http-server` with **Nginx** for production-grade frontend
+    - Nginx provides better performance, caching, and security features
+
+---
+
+## ⚠️ Notes & Best Practices
+
+- Always use **explicit image tags** (avoid `latest`)
+- Do not commit `.env` files to GitHub
+- Use **AWS Secrets Manager** for production credentials
+- Replace Node `http-server` with **Nginx** for production-grade frontend
+- Test thoroughly before deploying to production
+- Keep Docker and dependencies up to date
+- Use health checks for monitoring container status
+- Implement proper error handling and logging
+
+---
 
 ## Cleanup
 
@@ -453,14 +626,36 @@ docker system prune -a --volumes
 - [Amazon Linux 2023 Documentation](https://docs.aws.amazon.com/linux/)
 - [Flask Documentation](https://flask.palletsprojects.com/)
 - [PostgreSQL Docker Image](https://hub.docker.com/_/postgres)
+- [Project Repository](https://github.com/SaikiranAsamwar/EC2-Python-Docker.git)
 
-## Support and Troubleshooting
+---
+
+## 👨‍💻 Author & Support
+
+**Saikiran Rajesh Asamwar**  
+AWS DevOps Engineer  
+
+- GitHub: https://github.com/SaikiranAsamwar  
+- Docker Hub: https://hub.docker.com/u/saikiranasamwar4  
 
 For additional help:
 1. Check application logs: `docker-compose logs`
 2. Review Docker documentation: [docs.docker.com](https://docs.docker.com)
 3. Check AWS CloudWatch for system logs
 4. Consult project-specific README files in backend/ and frontend/ directories
+
+---
+
+## ✅ Deployment Outcome
+
+✔ Clean Docker-based deployment  
+✔ Single-command setup (5 steps)  
+✔ Cloud-ready architecture  
+✔ Fully containerized application  
+✔ Scalable and maintainable solution  
+✔ Portfolio & interview ready  
+
+---
 
 ## Version Information
 
@@ -470,3 +665,4 @@ For additional help:
 - **Python:** 3.11
 - **Node.js:** 18 (frontend)
 - **PostgreSQL:** 15
+- **Flask:** Latest LTS version

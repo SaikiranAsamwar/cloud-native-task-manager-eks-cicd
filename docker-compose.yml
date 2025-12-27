@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: taskmanager
+      POSTGRES_PASSWORD: taskmanager123
+      POSTGRES_DB: taskmanager_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    image: saikiranasamwar4/taskmanager-backend
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=your-secret-key-change-in-production
+      - DATABASE_URL=postgresql://taskmanager:taskmanager123@postgres:5432/taskmanager_db
+    volumes:
+      - ./backend:/app
+      - backend_instance:/app/instance
+    ports:
+      - "8888:8888"
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ./frontend
+    image: saikiranasamwar4/taskmanager-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_instance:

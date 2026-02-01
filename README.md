@@ -105,6 +105,37 @@ sudo dnf update -y
 sudo dnf install -y git wget curl tar unzip vim nano
 ```
 
+### 1.4 Fix Broken DNF (if you get "ModuleNotFoundError: No module named 'dnf'")
+
+**If you encounter dnf errors during installation, run this fix IMMEDIATELY:**
+
+```bash
+# Method 1: Use microdnf to fix dnf (FASTEST)
+sudo microdnf install dnf -y
+
+# Verify dnf is fixed
+dnf --version
+
+# If microdnf not available, try this:
+# Method 2: Rebuild rpm database
+sudo rpm --rebuilddb
+sudo yum clean all
+sudo yum update -y
+
+# If still broken, Method 3: Fresh install
+cd /tmp
+sudo rpm --force --nodeps -ivh \
+  http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-dbus-1*.rpm \
+  http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-libs-3*.rpm \
+  http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-3*.rpm \
+  http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/dnf-*.rpm 2>/dev/null || true
+
+# Test if dnf works
+dnf --version
+```
+
+**After fixing dnf, continue with remaining installations. All subsequent steps will work.**
+
 ---
 
 ## Step 2: Install Docker
@@ -233,10 +264,10 @@ sudo dnf install -y java-17-amazon-corretto
 java -version
 ```
 
-**Alternative Installation Method:**
+**If dnf still fails after Step 1.4 fix, use Direct RPM:**
 ```bash
-# Direct RPM download (if dnf repository not available)
 sudo rpm -ivh https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux-jdk.rpm
+java -version
 ```
 
 ---
@@ -245,13 +276,13 @@ sudo rpm -ivh https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux
 
 ```bash
 # Install PostgreSQL 15
-sudo dnf install -y postgresql15-server postgresql15
+sudo dnf install -y postgresql15 postgresql15-server
 
 # If not available, try without version number
-sudo dnf install -y postgresql-server postgresql
+sudo dnf install -y postgresql postgresql-server
 
 # Initialize database
-sudo postgresql-setup --initdb
+sudo /usr/bin/postgresql-setup --initdb
 
 # Start and enable PostgreSQL
 sudo systemctl start postgresql
@@ -261,14 +292,20 @@ sudo systemctl enable postgresql
 sudo systemctl status postgresql
 ```
 
-**Alternative - Direct RPM Installation (if dnf fails):**
+**If dnf still fails after Step 1.4 fix, use Docker instead:**
 ```bash
-# Download and install PostgreSQL directly
-sudo rpm -ivh https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-sudo dnf install -y postgresql15-server postgresql15
-sudo postgresql-setup --initdb
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+# Run PostgreSQL in Docker (simplest alternative)
+docker run -d \
+  --name postgres-sonarqube \
+  -e POSTGRES_USER=sonarqube \
+  -e POSTGRES_PASSWORD=sonar123 \
+  -e POSTGRES_DB=sonarqube \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:15-alpine
+
+# Verify
+docker ps | grep postgres
 ```
 
 ### Configure PostgreSQL for SonarQube

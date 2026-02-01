@@ -99,10 +99,10 @@ ssh -i your-key.pem ec2-user@your-ec2-public-ip
 
 ```bash
 # Update all packages
-sudo dnf update -y
+sudo yum update -y
 
 # Install basic utilities
-sudo dnf install -y git wget curl tar unzip vim nano
+sudo yum install -y git wget curl tar unzip vim nano
 ```
 
 ---
@@ -111,7 +111,7 @@ sudo dnf install -y git wget curl tar unzip vim nano
 
 ```bash
 # Install Docker
-sudo dnf install -y docker
+sudo yum install -y docker
 
 # Start and enable Docker service
 sudo systemctl start docker
@@ -149,7 +149,7 @@ docker-compose --version
 
 ```bash
 # Install Python 3.11
-sudo dnf install -y python3.11 python3.11-pip
+sudo yum install -y python3.11 python3.11-pip
 
 # Verify installation
 python3.11 --version
@@ -227,13 +227,11 @@ eksctl version
 
 ```bash
 # Install Amazon Corretto 17 (OpenJDK)
-sudo dnf install -y java-17-amazon-corretto
+sudo yum install -y java-17-amazon-corretto
 
 # Verify
 java -version
 ```
-
-**Note:** If you get `ModuleNotFoundError: No module named 'dnf'` when using `yum`, use `dnf` directly as shown above. Amazon Linux 2023 uses `dnf` as the primary package manager.
 
 **Alternative Installation Methods:**
 ```bash
@@ -248,38 +246,12 @@ sudo rpm -ivh https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux
 
 ## Step 9: Install PostgreSQL (for SonarQube)
 
-**⚠️ IMPORTANT: Fix Package Manager First (if broken)**
-
-If you get `ModuleNotFoundError: No module named 'dnf'` error, your package manager is broken. Fix it first:
-
-```bash
-# Check which Python dnf is trying to use
-head -1 /usr/bin/dnf
-
-# Reinstall Python and dnf using rpm
-sudo rpm --rebuilddb
-sudo rpm -ivh --force $(find /var/cache/dnf -name "python3*.rpm" 2>/dev/null | head -1)
-
-# Alternative: Download and reinstall dnf directly
-cd /tmp
-sudo rpm -ivh --force --nodeps \
-  https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/dnf-4.14.0-1.el9.noarch.rpm \
-  https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/python3-dnf-4.14.0-1.el9.noarch.rpm
-
-# Or use Python pip to install dnf
-sudo python3 -m pip install dnf --force-reinstall
-```
-
-**Now Install PostgreSQL:**
-
 ```bash
 # Install PostgreSQL 15
-sudo dnf install -y postgresql15-server postgresql15
+sudo yum install -y postgresql15-server postgresql15
 
-# If still failing, use direct RPM installation
-sudo rpm -ivh https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-sudo rpm -ivh https://download.postgresql.org/pub/repos/yum/15/redhat/rhel-9-x86_64/postgresql15-server-15.5-1PGDG.rhel9.x86_64.rpm
-sudo rpm -ivh https://download.postgresql.org/pub/repos/yum/15/redhat/rhel-9-x86_64/postgresql15-15.5-1PGDG.rhel9.x86_64.rpm
+# If not available, try without version number
+sudo yum install -y postgresql-server postgresql
 
 # Initialize database
 sudo postgresql-setup --initdb
@@ -292,15 +264,11 @@ sudo systemctl enable postgresql
 sudo systemctl status postgresql
 ```
 
-**Note:** If you encounter the `dnf` module error, your system's package manager is corrupted. Use the RPM installation method above as a workaround.
-
-**Alternative if postgresql15 is not available:**
+**Alternative - Direct RPM Installation (if yum fails):**
 ```bash
-# Check available PostgreSQL versions
-sudo dnf search postgresql
-
-# Install available version (e.g., postgresql16 or postgresql14)
-sudo dnf install -y postgresql-server postgresql
+# Download and install PostgreSQL directly
+sudo rpm -ivh https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+sudo yum install -y postgresql15-server postgresql15
 sudo postgresql-setup --initdb
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
@@ -351,7 +319,7 @@ sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 
 # Install Jenkins
-sudo dnf install -y jenkins
+sudo yum install -y jenkins
 
 # Start Jenkins
 sudo systemctl start jenkins
@@ -847,7 +815,7 @@ sslcacert=/etc/pki/tls/certs/ca-bundle.crt
 EOF
 
 # Install Grafana
-sudo dnf install -y grafana
+sudo yum install -y grafana
 
 # Start Grafana
 sudo systemctl start grafana-server

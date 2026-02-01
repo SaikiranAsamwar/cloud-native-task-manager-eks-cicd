@@ -99,10 +99,10 @@ ssh -i your-key.pem ec2-user@your-ec2-public-ip
 
 ```bash
 # Update all packages
-sudo yum update -y
+sudo dnf update -y
 
 # Install basic utilities
-sudo yum install -y git wget curl tar unzip vim nano
+sudo dnf install -y git wget curl tar unzip vim nano
 ```
 
 ---
@@ -111,7 +111,7 @@ sudo yum install -y git wget curl tar unzip vim nano
 
 ```bash
 # Install Docker
-sudo yum install -y docker
+sudo dnf install -y docker
 
 # Start and enable Docker service
 sudo systemctl start docker
@@ -133,14 +133,11 @@ docker ps
 ## Step 3: Install Docker Compose
 
 ```bash
-# Download Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-
-# Make it executable
-sudo chmod +x /usr/local/bin/docker-compose
+# Install Docker Compose v2 (plugin)
+sudo dnf install -y docker-compose-plugin
 
 # Verify installation
-docker-compose --version
+docker compose version
 ```
 
 ---
@@ -149,7 +146,7 @@ docker-compose --version
 
 ```bash
 # Install Python 3.11
-sudo yum install -y python3.11 python3.11-pip
+sudo dnf install -y python3.11 python3.11-pip
 
 # Verify installation
 python3.11 --version
@@ -227,18 +224,15 @@ eksctl version
 
 ```bash
 # Install Amazon Corretto 17 (OpenJDK)
-sudo yum install -y java-17-amazon-corretto
+sudo dnf install -y java-17-amazon-corretto
 
 # Verify
 java -version
 ```
 
-**Alternative Installation Methods:**
+**Alternative Installation Method:**
 ```bash
-# Method 1: Using amazon-linux-extras (Amazon Linux 2 only)
-sudo amazon-linux-extras install java-openjdk17 -y
-
-# Method 2: Direct RPM download
+# Direct RPM download (if dnf repository not available)
 sudo rpm -ivh https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux-jdk.rpm
 ```
 
@@ -248,10 +242,10 @@ sudo rpm -ivh https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux
 
 ```bash
 # Install PostgreSQL 15
-sudo yum install -y postgresql15-server postgresql15
+sudo dnf install -y postgresql15-server postgresql15
 
 # If not available, try without version number
-sudo yum install -y postgresql-server postgresql
+sudo dnf install -y postgresql-server postgresql
 
 # Initialize database
 sudo postgresql-setup --initdb
@@ -264,11 +258,11 @@ sudo systemctl enable postgresql
 sudo systemctl status postgresql
 ```
 
-**Alternative - Direct RPM Installation (if yum fails):**
+**Alternative - Direct RPM Installation (if dnf fails):**
 ```bash
 # Download and install PostgreSQL directly
 sudo rpm -ivh https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-sudo yum install -y postgresql15-server postgresql15
+sudo dnf install -y postgresql15-server postgresql15
 sudo postgresql-setup --initdb
 sudo systemctl start postgresql
 sudo systemctl enable postgresql
@@ -319,7 +313,7 @@ sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 
 # Install Jenkins
-sudo yum install -y jenkins
+sudo dnf install -y jenkins
 
 # Start Jenkins
 sudo systemctl start jenkins
@@ -815,7 +809,7 @@ sslcacert=/etc/pki/tls/certs/ca-bundle.crt
 EOF
 
 # Install Grafana
-sudo yum install -y grafana
+sudo dnf install -y grafana
 
 # Start Grafana
 sudo systemctl start grafana-server
@@ -959,7 +953,7 @@ docker push saikiranasamwar4/taskmanager-backend:v1.0
 # Push frontend
 docker push saikiranasamwar4/taskmanager-frontend:v1.0
 
-# Also tag and push as latest for docker-compose compatibility
+# Also tag and push as latest for docker compose compatibility
 docker tag saikiranasamwar4/taskmanager-backend:v1.0 saikiranasamwar4/taskmanager-backend:latest
 docker tag saikiranasamwar4/taskmanager-frontend:v1.0 saikiranasamwar4/taskmanager-frontend:latest
 docker push saikiranasamwar4/taskmanager-backend:latest
@@ -970,16 +964,16 @@ docker push saikiranasamwar4/taskmanager-frontend:latest
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Check running containers
 docker ps
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ### 15.5 Verify Application
@@ -1194,7 +1188,7 @@ The project includes a `Jenkinsfile` that defines the complete CI/CD pipeline wi
 1. **Checkout** - Clone source code from repository
 2. **Build Backend** - Build Flask backend Docker image
 3. **Build Frontend** - Build Nginx frontend Docker image
-4. **Test** - Run integration tests with docker-compose
+4. **Test** - Run integration tests with docker compose
 5. **Push to Registry** - Push images to DockerHub
 6. **Deploy to Kubernetes** - Deploy to EKS cluster
 
@@ -1343,7 +1337,7 @@ Started by user admin
   ✓ Tagged as taskmanager-frontend:latest
   
 [Pipeline] stage (Test)
-  ✓ Starting docker-compose services...
+  ✓ Starting docker compose services...
   ✓ Testing frontend accessibility...
   ✓ Stopping services...
   
@@ -1819,9 +1813,9 @@ docker ps                              # List running containers
 docker logs <container>                # View logs
 docker logs -f <container>             # Follow logs
 docker exec -it <container> sh         # Shell into container
-docker-compose up -d                   # Start services
-docker-compose down                    # Stop services
-docker-compose logs -f                 # Follow all logs
+docker compose up -d                   # Start services
+docker compose down                    # Stop services
+docker compose logs -f                 # Follow all logs
 docker system prune -a                 # Clean up unused resources
 docker volume ls                       # List volumes
 docker network ls                      # List networks

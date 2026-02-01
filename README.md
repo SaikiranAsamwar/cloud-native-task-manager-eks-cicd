@@ -233,13 +233,24 @@ sudo dnf install -y java-17-amazon-corretto
 java -version
 ```
 
+**Note:** If you get `ModuleNotFoundError: No module named 'dnf'` when using `yum`, use `dnf` directly as shown above. Amazon Linux 2023 uses `dnf` as the primary package manager.
+
+**Alternative Installation Methods:**
+```bash
+# Method 1: Using amazon-linux-extras (Amazon Linux 2 only)
+sudo amazon-linux-extras install java-openjdk17 -y
+
+# Method 2: Direct RPM download
+sudo rpm -ivh https://corretto.aws/downloads/latest/amazon-corretto-17-x64-linux-jdk.rpm
+```
+
 ---
 
 ## Step 9: Install PostgreSQL (for SonarQube)
 
 ```bash
 # Install PostgreSQL 15
-sudo dnf install -y postgresql15-server
+sudo dnf install -y postgresql15-server postgresql15
 
 # Initialize database
 sudo postgresql-setup --initdb
@@ -250,6 +261,20 @@ sudo systemctl enable postgresql
 
 # Check status
 sudo systemctl status postgresql
+```
+
+**Note:** If you encounter the `dnf` module error, make sure you're using `dnf` not `yum`. For Amazon Linux 2023, `dnf` is the default package manager.
+
+**Alternative if postgresql15 is not available:**
+```bash
+# Check available PostgreSQL versions
+sudo dnf search postgresql
+
+# Install available version (e.g., postgresql16 or postgresql14)
+sudo dnf install -y postgresql-server postgresql
+sudo postgresql-setup --initdb
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
 ```
 
 ### Configure PostgreSQL for SonarQube

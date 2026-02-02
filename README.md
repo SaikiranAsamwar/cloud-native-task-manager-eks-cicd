@@ -1,1198 +1,1692 @@
-# Task Manager - Python DevOps End-to-End Project
+# Complete Deployment Guide for Python DevOps Project on Amazon Linux 2023
 
-A comprehensive **Task Manager web application** with a **Flask (Python) backend**, **PostgreSQL database**, and **Nginx-served frontend**, deployed using **Docker**, **Docker Compose**, and **Kubernetes (EKS-ready)**. Includes **Jenkins CI/CD automation**, **SonarQube code quality**, and **Prometheus + Grafana monitoring**.
+This guide provides a comprehensive, step-by-step walkthrough for deploying the entire Python DevOps application stack on Amazon Linux 2023.
 
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#project-overview)
-2. [Architecture](#architecture)
-3. [Prerequisites](#prerequisites)
-4. [Installation and Setup](#installation-and-setup)
-5. [Running the Application](#running-the-application)
-6. [Docker and Docker Compose](#docker-and-docker-compose)
-7. [Kubernetes Deployment](#kubernetes-deployment)
-8. [Jenkins CI/CD Pipeline](#jenkins-cicd-pipeline)
-9. [SonarQube Code Quality](#sonarqube-code-quality)
+1. [Prerequisites](#prerequisites)
+2. [System Setup and Configuration](#system-setup-and-configuration)
+3. [Installing Required Tools](#installing-required-tools)
+4. [Backend Application Setup](#backend-application-setup)
+5. [Frontend Application Setup](#frontend-application-setup)
+6. [Database Setup](#database-setup)
+7. [Docker and Docker Compose Deployment](#docker-and-docker-compose-deployment)
+8. [Kubernetes Deployment](#kubernetes-deployment)
+9. [Jenkins CI/CD Setup](#jenkins-cicd-setup)
 10. [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
 11. [Troubleshooting](#troubleshooting)
-12. [Project Structure](#project-structure)
-
----
-
-## Project Overview
-
-The Task Manager is an end-to-end DevOps project that demonstrates:
-
-- **Frontend**: Static HTML/CSS/JavaScript served by Nginx
-- **Backend**: Flask REST API with SQLAlchemy ORM
-- **Database**: PostgreSQL for persistent data storage
-- **Containerization**: Docker images for all services
-- **Orchestration**: Kubernetes manifests for production deployment
-- **Automation**: Jenkins pipeline for CI/CD
-- **Quality**: SonarQube for code analysis
-- **Monitoring**: Prometheus for metrics, Grafana for dashboards
-
----
-
-## Architecture
-
-### High-Level System Design
-
-```
-┌─────────────┐          ┌──────────────┐          ┌────────────────┐
-│   Nginx     │ ◄────►   │    Flask     │ ◄────►   │  PostgreSQL    │
-│  (Frontend) │          │   (Backend)  │          │   (Database)   │
-│   Port 80   │          │  Port 8888   │          │   Port 5432    │
-└─────────────┘          └──────────────┘          └────────────────┘
-```
-
-### Component Details
-
-| Component | Technology | Port | Purpose |
-|-----------|-----------|------|---------|
-| Frontend | Nginx + HTML/CSS/JS | 80 | Static file serving |
-| Backend | Flask + SQLAlchemy | 8888 | REST API server |
-| Database | PostgreSQL 15 | 5432 | Data persistence |
-| Message Queue | Docker Compose | - | Multi-container orchestration |
-| Kubernetes | EKS-Ready | - | Production orchestration |
+12. [Verification and Testing](#verification-and-testing)
 
 ---
 
 ## Prerequisites
 
-### System Requirements
+### Hardware Requirements
+- **RAM**: Minimum 4GB (8GB recommended for smooth operation)
+- **CPU**: 2 vCPUs minimum (4 vCPUs recommended)
+- **Disk Space**: 50GB minimum
+- **OS**: Amazon Linux 2023
 
-- **OS**: Windows 10/11, macOS, or Linux
-- **RAM**: Minimum 8GB (16GB recommended)
-- **Disk Space**: 10GB free space
-- **Internet**: Required for downloading dependencies
+### Network Requirements
+- Internet connectivity for downloading packages and dependencies
+- Open ports: 80 (HTTP), 443 (HTTPS), 5432 (PostgreSQL), 8080 (Jenkins), 9090 (Prometheus), 3000 (Grafana)
 
-### Required Software
-
-Before installation, ensure you have the following tools installed:
-
-#### 1. **Python 3.10 or Higher**
-   - Download from: https://www.python.org/downloads/
-   - **Windows**: Choose "Add Python to PATH" during installation
-   - **Verify installation**:
-     ```bash
-     python --version
-     # Output should be: Python 3.10.0 or higher
-     ```
-
-#### 2. **Git**
-   - Download from: https://git-scm.com/downloads
-   - **Verify installation**:
-     ```bash
-     git --version
-     # Output should be: git version 2.x.x
-     ```
-
-#### 3. **Docker Desktop**
-   - Download from: https://www.docker.com/products/docker-desktop
-   - Install and start Docker Desktop
-   - **Verify installation**:
-     ```bash
-     docker --version
-     # Output should be: Docker version 20.x.x
-     docker run hello-world
-     # Should display "Hello from Docker!" message
-     ```
-
-#### 4. **Docker Compose**
-   - Usually comes with Docker Desktop
-   - **Verify installation**:
-     ```bash
-     docker-compose --version
-     # Output should be: docker-compose version 2.x.x
-     ```
-
-#### 5. **Kubernetes (kubectl)** [Optional for Kubernetes deployment]
-   - Download from: https://kubernetes.io/docs/tasks/tools/
-   - **Verify installation**:
-     ```bash
-     kubectl version --client
-     ```
-
-#### 6. **PostgreSQL Client Tools** [Optional for database management]
-   - Download from: https://www.postgresql.org/download/
-   - Or use command-line tools from PostgreSQL installation
+### AWS EC2 Instance Setup
+1. Launch an EC2 instance with Amazon Linux 2023 AMI
+2. Choose appropriate instance type (t3.medium or larger recommended)
+3. Allocate 50GB EBS volume
+4. Create/use security group with rules allowing ports mentioned above
+5. Connect to instance via SSH
 
 ---
 
-## Installation and Setup
+## System Setup and Configuration
+
+### Step 1: Connect to Your EC2 Instance
+
+```bash
+ssh -i your-key.pem ec2-user@your-instance-ip
+```
+
+Replace `your-key.pem` with your actual key file and `your-instance-ip` with your instance IP address.
+
+### Step 2: Update System Packages
+
+After connecting, update all system packages to ensure you have the latest patches and security updates:
+
+```bash
+sudo yum update -y
+```
+
+This command will:
+- Download package lists from configured repositories
+- Check for updates for all installed packages
+- Install all available updates
+- The `-y` flag automatically confirms the operation
+
+### Step 3: Install Essential Build Tools
+
+Install the necessary build tools that will be needed for compiling Python packages and other dependencies:
+
+```bash
+sudo yum groupinstall "Development Tools" -y
+```
+
+Additionally, install some individual essential packages:
+
+```bash
+sudo yum install -y \
+  gcc \
+  gcc-c++ \
+  make \
+  kernel-devel \
+  openssl-devel \
+  bzip2-devel \
+  libffi-devel \
+  zlib-devel \
+  wget \
+  curl \
+  git \
+  vim
+```
+
+### Step 4: Configure System Limits (For Production)
+
+Edit the system limits configuration file:
+
+```bash
+sudo nano /etc/security/limits.conf
+```
+
+Add the following lines at the end of the file:
+
+```
+* soft nofile 65536
+* hard nofile 65536
+* soft nproc 65536
+* hard nproc 65536
+```
+
+Save the file (Ctrl+X, then Y, then Enter).
+
+### Step 5: Create Application User
+
+Create a dedicated user for running the application:
+
+```bash
+sudo useradd -m -s /bin/bash appuser
+```
+
+This creates a user named `appuser` with:
+- `-m`: Creates home directory
+- `-s /bin/bash`: Sets shell to bash
+
+Switch to this user:
+
+```bash
+sudo su - appuser
+```
+
+---
+
+## Installing Required Tools
+
+### Step 1: Install Python 3.11
+
+Amazon Linux 2023 comes with Python 3, but let's ensure we have the latest stable version:
+
+```bash
+sudo yum install -y python3.11 python3.11-devel
+```
+
+Create a symbolic link to make Python 3.11 the default:
+
+```bash
+sudo alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+```
+
+Verify Python installation:
+
+```bash
+python3 --version
+pip3 --version
+```
+
+Both should return version information.
+
+### Step 2: Install pip and Virtual Environment Tools
+
+pip should come with Python, but let's ensure it's updated:
+
+```bash
+sudo python3 -m pip install --upgrade pip
+```
+
+Install virtualenv for creating isolated Python environments:
+
+```bash
+sudo python3 -m pip install virtualenv
+```
+
+Verify the installation:
+
+```bash
+virtualenv --version
+```
+
+### Step 3: Install Docker
+
+Docker is essential for containerizing our application.
+
+Add Docker repository:
+
+```bash
+sudo yum install -y amazon-linux-extras
+```
+
+Install Docker:
+
+```bash
+sudo yum install -y docker
+```
+
+Start and enable Docker service:
+
+```bash
+sudo systemctl start docker
+sudo systemctl enable docker
+```
+
+Add your user to the docker group to run Docker without sudo:
+
+```bash
+sudo usermod -a -G docker ec2-user
+sudo usermod -a -G docker appuser
+```
+
+Apply the new group membership:
+
+```bash
+newgrp docker
+```
+
+Verify Docker installation:
+
+```bash
+docker --version
+docker run hello-world
+```
+
+### Step 4: Install Docker Compose
+
+Docker Compose allows us to define and run multi-container Docker applications.
+
+Download the latest Docker Compose binary:
+
+```bash
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+```
+
+Make it executable:
+
+```bash
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+Verify installation:
+
+```bash
+docker-compose --version
+```
+
+### Step 5: Install Git
+
+Git is likely already installed, but ensure it's the latest version:
+
+```bash
+sudo yum install -y git
+```
+
+Configure Git (replace with your information):
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
+
+Verify Git installation:
+
+```bash
+git --version
+```
+
+### Step 6: Install PostgreSQL Client
+
+Although the database runs in a container, installing the client tools helps with debugging:
+
+```bash
+sudo yum install -y postgresql
+```
+
+Verify installation:
+
+```bash
+psql --version
+```
+
+### Step 7: Install kubectl (For Kubernetes)
+
+Download kubectl binary:
+
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+```
+
+Make it executable and move to PATH:
+
+```bash
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+```
+
+Verify installation:
+
+```bash
+kubectl version --client
+```
+
+### Step 8: Install Minikube or Kind (For Local Kubernetes Testing)
+
+For testing Kubernetes manifests locally, install Minikube:
+
+```bash
+curl -minikube https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+chmod +x minikube
+sudo mv minikube /usr/local/bin/
+```
+
+Verify installation:
+
+```bash
+minikube version
+```
+
+### Step 9: Install Java (For Jenkins)
+
+Jenkins requires Java to run:
+
+```bash
+sudo yum install -y java-17-amazon-corretto-jdk
+```
+
+Verify Java installation:
+
+```bash
+java -version
+javac -version
+```
+
+### Step 10: Install Jenkins
+
+Add the Jenkins repository:
+
+```bash
+sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+```
+
+Import Jenkins GPG key:
+
+```bash
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+```
+
+Install Jenkins:
+
+```bash
+sudo yum install -y jenkins
+```
+
+Start and enable Jenkins service:
+
+```bash
+sudo systemctl start jenkins
+sudo systemctl enable jenkins
+```
+
+Verify Jenkins is running:
+
+```bash
+sudo systemctl status jenkins
+```
+
+---
+
+## Backend Application Setup
 
 ### Step 1: Clone the Repository
 
+Create a directory for the project:
+
 ```bash
-# Navigate to desired directory
-cd path/to/your/directory
-
-# Clone the repository
-git clone https://github.com/yourusername/Python-DevOps.git
-
-# Enter the project directory
-cd Python-DevOps
-
-# Verify the directory structure
-ls -la  # On Linux/macOS
-dir     # On Windows
+mkdir -p ~/projects
+cd ~/projects
 ```
+
+Clone your repository (replace with your actual repository URL):
+
+```bash
+git clone https://github.com/your-username/Python-DevOps.git
+cd Python-DevOps
+```
+
+If using local code, copy it to the directory instead.
 
 ### Step 2: Create Python Virtual Environment
 
-Virtual environments isolate project dependencies from system Python.
+Navigate to the backend directory:
 
-#### On Windows:
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-venv\Scripts\activate
-
-# After activation, your terminal should show: (venv)
+cd backend
 ```
 
-#### On macOS/Linux:
+Create a virtual environment:
+
 ```bash
-# Create virtual environment
 python3 -m venv venv
+```
 
-# Activate virtual environment
+Activate the virtual environment:
+
+```bash
 source venv/bin/activate
-
-# After activation, your terminal should show: (venv)
 ```
 
-### Step 3: Install Backend Dependencies
+You should see `(venv)` prefix in your terminal prompt.
+
+### Step 3: Install Python Dependencies
+
+Ensure you're in the backend directory with the virtual environment activated.
+
+Upgrade pip, setuptools, and wheel:
 
 ```bash
-# Ensure you're in the project root directory and venv is activated
-cd backend
+pip install --upgrade pip setuptools wheel
+```
 
-# Install all required Python packages
-pip install --upgrade pip
+Install dependencies from requirements.txt:
 
-# Install from requirements.txt
+```bash
 pip install -r requirements.txt
+```
 
-# Verify installation
+This command reads the requirements.txt file and installs all specified Python packages with their specified versions.
+
+To verify all packages are installed:
+
+```bash
 pip list
-
-# Expected packages:
-# Flask==3.0.0
-# Flask-SQLAlchemy==3.1.1
-# Flask-CORS==4.0.0
-# SQLAlchemy==2.0.25
-# psycopg2-binary==2.9.9
-# gunicorn==21.2.0
-# ... and others
 ```
 
-### Step 4: Set Up Environment Variables
+### Step 4: Review Backend Configuration
 
-Create a `.env` file in the backend directory:
+Examine the configuration file:
 
 ```bash
-# Navigate to backend directory
-cd backend
-
-# Create .env file (Windows)
-type nul > .env
-
-# OR create .env file (macOS/Linux)
-touch .env
-
-# Edit the .env file with the following content:
+cat config.py
 ```
 
-**Content for `.env` file:**
-```
-FLASK_ENV=development
-FLASK_DEBUG=1
-SECRET_KEY=7a8f9d2e4c6b1a3e5d7f9b2c4e6a8d0f1c3e5a7b9d1f3e5c7a9b1d3f5e7a9c1b
-DATABASE_URL=postgresql://taskmanager:P@ssw0rd!2026SecureDB@localhost:5432/taskmanager_db
-```
+Key configuration parameters typically include:
+- `SQLALCHEMY_DATABASE_URI`: Database connection string
+- `SECRET_KEY`: Application secret key
+- `DEBUG`: Debug mode flag
+- `FLASK_ENV`: Environment type (development/production)
 
-**Security Note**: In production, never use the same secret key and database password. Generate strong, unique values.
+### Step 5: Examine Application Structure
 
-### Step 5: Database Setup
-
-#### Option A: Using PostgreSQL Locally (Full Setup)
-
-1. **Install PostgreSQL**:
-   - Download from: https://www.postgresql.org/download/
-   - Follow installation wizard
-   - Remember the password you set for the `postgres` user
-
-2. **Start PostgreSQL service**:
-   - **Windows**: PostgreSQL starts automatically after installation
-   - **macOS**: Use `brew services start postgresql`
-   - **Linux**: Use `sudo systemctl start postgresql`
-
-3. **Create database and user**:
-   ```bash
-   # Open PostgreSQL command prompt (psql)
-   psql -U postgres
-   
-   # Inside psql, execute:
-   CREATE USER taskmanager WITH PASSWORD 'P@ssw0rd!2026SecureDB';
-   CREATE DATABASE taskmanager_db OWNER taskmanager;
-   
-   # Verify creation
-   \l  # Lists all databases
-   \du # Lists all users
-   
-   # Exit psql
-   \q
-   ```
-
-4. **Test connection**:
-   ```bash
-   # Test the connection from your terminal
-   psql -U taskmanager -d taskmanager_db -h localhost
-   
-   # If successful, you'll see: taskmanager_db=>
-   # Exit with: \q
-   ```
-
-#### Option B: Using Docker PostgreSQL (Recommended for Development)
+Review the main application files:
 
 ```bash
-# Start PostgreSQL in Docker
-docker run --name taskmanager-postgres \
-  -e POSTGRES_USER=taskmanager \
-  -e POSTGRES_PASSWORD=P@ssw0rd!2026SecureDB \
-  -e POSTGRES_DB=taskmanager_db \
-  -p 5432:5432 \
-  -d postgres:15-alpine
+cat run.py          # Main entry point
+cat app/__init__.py # Application factory
+cat app/models.py   # Database models
+cat app/routes.py   # API routes
+cat utils.py        # Utility functions
+```
 
-# Verify PostgreSQL is running
-docker ps
+### Step 6: Test Backend Locally (Optional)
 
-# Test connection (install psql if needed)
-psql -U taskmanager -d taskmanager_db -h localhost -W
-# Password: P@ssw0rd!2026SecureDB
+To test the backend without Docker:
+
+```bash
+python run.py
+```
+
+This should start the Flask development server. By default, it runs on http://localhost:5000
+
+To stop the server: Press Ctrl+C
+
+Verify it's running:
+
+```bash
+curl http://localhost:5000
 ```
 
 ---
 
-## Running the Application
+## Frontend Application Setup
 
-### Method 1: Local Development (Traditional Python)
+### Step 1: Check Node.js Installation (Optional)
 
-This method runs the application directly on your machine without Docker.
+If your frontend uses Node.js/npm:
 
-#### Step 1: Start PostgreSQL
 ```bash
-# If using Docker PostgreSQL (from previous setup)
-docker start taskmanager-postgres
-
-# If using local PostgreSQL, ensure the service is running
+curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash -
+sudo yum install -y nodejs
 ```
 
-#### Step 2: Navigate to Backend Directory
+Verify installation:
+
 ```bash
-# From project root
+node --version
+npm --version
+```
+
+### Step 2: Navigate to Frontend Directory
+
+```bash
+cd ../frontend
+```
+
+### Step 3: Review Frontend Files
+
+Check the structure of your frontend:
+
+```bash
+ls -la
+cat nginx.conf
+```
+
+The nginx.conf file contains web server configuration for serving static files.
+
+### Step 4: Build Frontend (If Required)
+
+If there's a build process (check for package.json):
+
+```bash
+npm install
+npm run build
+```
+
+If no build process, frontend files are already ready to serve.
+
+---
+
+## Database Setup
+
+### Step 1: Create PostgreSQL Data Directory
+
+Create a directory for PostgreSQL data persistence:
+
+```bash
+mkdir -p ~/data/postgres
+```
+
+### Step 2: Review Database Configuration
+
+Check the Kubernetes PostgreSQL manifest:
+
+```bash
+cat ../k8s/postgres-deployment.yaml
+```
+
+Note the:
+- Database name
+- Username
+- Password requirements
+- Storage configuration
+
+### Step 3: Environment Variables Setup
+
+Create a .env file for sensitive information:
+
+```bash
+cd ~/projects/Python-DevOps
+cat > .env << EOF
+# Database Configuration
+DB_NAME=appdb
+DB_USER=appuser
+DB_PASSWORD=your-secure-password-here
+DB_HOST=localhost
+DB_PORT=5432
+
+# Flask Configuration
+FLASK_ENV=production
+SECRET_KEY=your-secret-key-here
+
+# Other configurations
+LOG_LEVEL=INFO
+EOF
+```
+
+Secure the .env file:
+
+```bash
+chmod 600 .env
+```
+
+### Step 4: Create Database Initialization Script
+
+Create a script to initialize the database:
+
+```bash
+cat > init-db.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "Waiting for PostgreSQL to be ready..."
+for i in {1..30}; do
+  if psql -h $DB_HOST -U $DB_USER -d postgres -c "SELECT 1" > /dev/null 2>&1; then
+    echo "PostgreSQL is ready!"
+    break
+  fi
+  echo "Attempt $i failed. Retrying..."
+  sleep 2
+done
+
+echo "Creating database..."
+psql -h $DB_HOST -U $DB_USER -d postgres -c "CREATE DATABASE $DB_NAME;" || echo "Database already exists"
+
+echo "Running migrations..."
 cd backend
-
-# Ensure virtual environment is activated (you should see (venv) in terminal)
-# If not activated:
-# Windows: venv\Scripts\activate
-# macOS/Linux: source ../venv/bin/activate
-```
-
-#### Step 3: Initialize Database
-```bash
-# Run the Flask application to create tables
+source venv/bin/activate
 python run.py
 
-# You should see output like:
-# WARNING in app.config from werkzeug: 'DATABASE_URL' is not set!
-# Running on http://0.0.0.0:8888
+echo "Database initialization complete!"
+EOF
 
-# Press Ctrl+C to stop
+chmod +x init-db.sh
 ```
 
-#### Step 4: Run Backend Server
+---
+
+## Docker and Docker Compose Deployment
+
+### Step 1: Review Docker Compose Configuration
+
 ```bash
-# Start Flask development server
-python run.py
-
-# Expected output:
-# * Serving Flask app 'app'
-# * Debug mode: on
-# * WARNING: This is a development server. Do not use it in production deployment.
-# * Running on http://127.0.0.1:8888
+cat docker-compose.yml
 ```
 
-#### Step 5: Start Frontend (In a New Terminal)
+This file defines all services:
+- Backend service
+- Frontend service
+- PostgreSQL service
+- Any other services
+
+### Step 2: Build Docker Images
+
+Ensure you're in the project root directory:
+
 ```bash
-# Open new terminal window/tab
-
-# Navigate to frontend directory
-cd frontend
-
-# Start a simple HTTP server (Python built-in)
-python -m http.server 8000
-
-# Expected output:
-# Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/)
-
-# OR use Python's SimpleHTTPServer:
-python -m SimpleHTTPServer 8000
+cd ~/projects/Python-DevOps
 ```
 
-#### Step 6: Access the Application
-```
-Open browser and navigate to: http://localhost:8000
-```
+Build all images defined in docker-compose.yml:
 
-### Method 2: Using Docker Compose (Recommended)
-
-Docker Compose runs the entire application stack in containers with a single command.
-
-#### Step 1: Ensure Docker is Running
 ```bash
-# Verify Docker is installed and running
-docker --version
-docker ps  # Should show no errors
+docker-compose build
 ```
 
-#### Step 2: Build and Start Services
-```bash
-# Navigate to project root (if not already there)
-cd Python-DevOps
+This process will:
+- Read the docker-compose.yml file
+- Build each service's image using its Dockerfile
+- Tag images appropriately
+- Store images in local Docker registry
 
-# Build images and start containers
+Monitor the build output for any errors. Typical output should show:
+```
+Building backend
+Building frontend
+...
+Successfully built [image-id]
+```
+
+### Step 3: Start Services with Docker Compose
+
+Start all services in the background:
+
+```bash
 docker-compose up -d
-
-# Expected output:
-# Building backend
-# Building frontend
-# Creating taskmanager-postgres
-# Creating taskmanager-backend
-# Creating taskmanager-frontend
-
-# Verify all services are running
-docker-compose ps
-
-# Output should show:
-# NAME              STATUS            PORTS
-# taskmanager-postgres    Up 2 minutes   5432/tcp
-# taskmanager-backend     Up 2 minutes   0.0.0.0:8888->8888/tcp
-# taskmanager-frontend    Up 2 minutes   0.0.0.0:80->80/tcp
 ```
 
-#### Step 3: Access the Application
-```
-Frontend: http://localhost
-Backend API: http://localhost:8888
-```
+The `-d` flag runs services in detached mode (background).
 
-#### Step 4: View Logs
+### Step 4: Verify Services are Running
+
+Check the status of all services:
+
 ```bash
-# View logs from all services
-docker-compose logs -f
+docker-compose ps
+```
 
-# View logs from specific service
+Output should show all services with status "Up X seconds/minutes".
+
+### Step 5: Check Service Logs
+
+View logs from all services:
+
+```bash
+docker-compose logs -f
+```
+
+View logs from a specific service:
+
+```bash
 docker-compose logs -f backend
 docker-compose logs -f frontend
 docker-compose logs -f postgres
 ```
 
-#### Step 5: Stop Services
-```bash
-# Stop all containers
-docker-compose stop
+The `-f` flag follows log output (like `tail -f`).
 
-# Remove all containers
+### Step 6: Test Backend Service
+
+```bash
+curl http://localhost:5000/
+```
+
+Should return a response from your Flask application.
+
+### Step 7: Test Frontend Service
+
+Open a browser and navigate to:
+
+```
+http://your-instance-ip
+```
+
+Should display your frontend application.
+
+### Step 8: Test Database Connection
+
+Verify PostgreSQL is accessible:
+
+```bash
+docker-compose exec postgres psql -U appuser -d appdb -c "SELECT version();"
+```
+
+This command executes a SQL query in the PostgreSQL container.
+
+### Step 9: Stop Services
+
+When needed, stop all services:
+
+```bash
 docker-compose down
+```
 
-# Remove containers and volumes (careful: loses data)
+Remove volumes (data) as well:
+
+```bash
 docker-compose down -v
-```
-
----
-
-## Docker and Docker Compose
-
-### Understanding Docker
-
-Docker packages your application with all dependencies into a **container** that runs the same everywhere.
-
-### Docker Commands
-
-#### Build Images
-```bash
-# Build all images defined in docker-compose.yml
-docker-compose build
-
-# Build specific image
-docker-compose build backend
-
-# Build with no cache (fresh build)
-docker-compose build --no-cache
-```
-
-#### Run Containers
-```bash
-# Start services defined in docker-compose.yml
-docker-compose up
-
-# Start in background (detached mode)
-docker-compose up -d
-
-# Rebuild and start
-docker-compose up --build
-```
-
-#### Manage Containers
-```bash
-# List running containers
-docker ps
-
-# List all containers (including stopped)
-docker ps -a
-
-# Stop specific container
-docker stop container_name
-
-# Remove specific container
-docker rm container_name
-
-# View container logs
-docker logs container_name
-
-# Execute command inside container
-docker exec -it container_name /bin/bash
-```
-
-#### Clean Up
-```bash
-# Remove unused images
-docker image prune -a
-
-# Remove unused volumes
-docker volume prune
-
-# Remove everything (images, containers, networks, volumes)
-docker system prune -a
-```
-
-### Docker Compose Configuration Explained
-
-The `docker-compose.yml` file defines the entire stack:
-
-```yaml
-version: '3.8'  # Docker Compose version
-
-services:
-  postgres:
-    image: postgres:15-alpine
-    # PostgreSQL database service
-    # Runs on port 5432
-    # Creates volume for persistent data
-
-  backend:
-    build: ./backend
-    # Builds image from backend/Dockerfile
-    # Runs Flask application on port 8888
-    # Depends on postgres service
-
-  frontend:
-    build: ./frontend
-    # Builds image from frontend/Dockerfile
-    # Runs Nginx on port 80
-    # Depends on backend service
-
-volumes:
-  postgres_data:
-    # Named volume for PostgreSQL data persistence
 ```
 
 ---
 
 ## Kubernetes Deployment
 
-Kubernetes is used for production-grade deployments with auto-scaling, self-healing, and rolling updates.
+### Step 1: Start Kubernetes Cluster
 
-### Prerequisites for Kubernetes
-
-1. **kubectl installed** (Kubernetes command-line tool)
-   ```bash
-   kubectl version --client
-   ```
-
-2. **Kubernetes cluster access**
-   - Local cluster: Docker Desktop, Minikube, or Kind
-   - Cloud cluster: AWS EKS, Azure AKS, Google GKE
-
-3. **kubectl configured** to access your cluster
-   ```bash
-   # Verify cluster connection
-   kubectl cluster-info
-   ```
-
-### Step 1: Set Up Kubernetes Namespace
-
-The namespace provides isolation for your application.
+If using Minikube:
 
 ```bash
-# Create namespace
-kubectl apply -f k8s/namespace.yaml
+minikube start --cpus=2 --memory=4096
+```
 
-# Verify namespace created
+Configure kubectl to use Minikube:
+
+```bash
+minikube config set vm-driver docker
+```
+
+### Step 2: Create Namespace
+
+Kubernetes uses namespaces to organize resources:
+
+```bash
+kubectl create namespace devops-app
+```
+
+Verify namespace creation:
+
+```bash
 kubectl get namespaces
-
-# Expected output should include: taskmanager
 ```
 
-### Step 2: Create Secrets for Database Credentials
+### Step 3: Review Kubernetes Manifests
 
-Secrets securely store sensitive data.
+Check all manifest files:
 
 ```bash
-# Create secrets
-kubectl apply -f k8s/secrets.yaml
-
-# Verify secrets created
-kubectl get secrets -n taskmanager
-
-# Expected output:
-# NAME              TYPE     DATA   AGE
-# db-credentials    Opaque   3      2m
+ls k8s/
+cat k8s/namespace.yaml
+cat k8s/secrets.yaml
+cat k8s/postgres-pvc.yaml
+cat k8s/postgres-deployment.yaml
+cat k8s/backend-deployment.yaml
+cat k8s/frontend-deployment.yaml
+cat k8s/ingress.yaml
 ```
 
-### Step 3: Deploy PostgreSQL Database
+### Step 4: Create Secrets
+
+Create Kubernetes secrets for sensitive data:
 
 ```bash
-# Create persistent volume claim for database
-kubectl apply -f k8s/postgres-pvc.yaml
-
-# Deploy PostgreSQL
-kubectl apply -f k8s/postgres-deployment.yaml
-
-# Verify PostgreSQL is running
-kubectl get pods -n taskmanager
-kubectl get svc -n taskmanager
-
-# Check PostgreSQL pod status
-kubectl get pod -n taskmanager -l app=postgres
-
-# View PostgreSQL logs
-kubectl logs -n taskmanager -l app=postgres
+kubectl apply -f k8s/secrets.yaml -n devops-app
 ```
 
-### Step 4: Deploy Backend Application
+Verify secrets creation:
 
 ```bash
-# Deploy Flask backend
-kubectl apply -f k8s/backend-deployment.yaml
-
-# Verify backend is running
-kubectl get pods -n taskmanager
-kubectl get svc -n taskmanager
-
-# Check backend pod status
-kubectl get pod -n taskmanager -l app=backend
-
-# View backend logs
-kubectl logs -n taskmanager -l app=backend
-
-# Stream logs in real-time
-kubectl logs -n taskmanager -l app=backend -f
+kubectl get secrets -n devops-app
 ```
 
-### Step 5: Deploy Frontend Application
+### Step 5: Create Storage Resources
+
+Create PersistentVolumeClaim for PostgreSQL data:
 
 ```bash
-# Deploy Nginx frontend
-kubectl apply -f k8s/frontend-deployment.yaml
-
-# Verify frontend is running
-kubectl get pods -n taskmanager
-kubectl get svc -n taskmanager
-
-# Check frontend pod status
-kubectl get pod -n taskmanager -l app=frontend
-
-# View frontend logs
-kubectl logs -n taskmanager -l app=frontend
+kubectl apply -f k8s/postgres-pvc.yaml -n devops-app
 ```
 
-### Step 6: Set Up Ingress (External Access)
-
-Ingress provides external access to your services.
+Verify PVC creation:
 
 ```bash
-# Deploy Ingress controller
-kubectl apply -f k8s/ingress.yaml
-
-# Verify Ingress created
-kubectl get ingress -n taskmanager
-
-# Get external IP/hostname
-kubectl get svc -n taskmanager
-
-# Once external IP is assigned, access:
-# Frontend: http://<external-ip>
-# Backend API: http://<external-ip>/api
+kubectl get pvc -n devops-app
 ```
 
-### Useful Kubernetes Commands
+### Step 6: Deploy PostgreSQL
 
 ```bash
-# View all resources in namespace
-kubectl get all -n taskmanager
+kubectl apply -f k8s/postgres-deployment.yaml -n devops-app
+```
 
-# Describe a specific pod (for debugging)
-kubectl describe pod <pod-name> -n taskmanager
+Wait for PostgreSQL pod to be ready:
 
-# Get pod details
-kubectl get pods -n taskmanager -o wide
+```bash
+kubectl wait --for=condition=ready pod -l app=postgres -n devops-app --timeout=300s
+```
 
-# Port forward to access service locally
-kubectl port-forward svc/backend 8888:8888 -n taskmanager
-kubectl port-forward svc/frontend 80:80 -n taskmanager
+Verify PostgreSQL deployment:
 
-# Scale deployment (increase replicas)
-kubectl scale deployment backend --replicas=3 -n taskmanager
+```bash
+kubectl get pods -n devops-app -l app=postgres
+kubectl get svc -n devops-app
+```
 
-# Update deployment image
-kubectl set image deployment/backend backend=image:new-tag -n taskmanager
+### Step 7: Deploy Backend Application
 
-# Check deployment rollout status
-kubectl rollout status deployment/backend -n taskmanager
+```bash
+kubectl apply -f k8s/backend-deployment.yaml -n devops-app
+```
 
-# Rollback to previous version
-kubectl rollout undo deployment/backend -n taskmanager
+Wait for backend pods to be ready:
 
-# Delete entire namespace (removes all resources)
-kubectl delete namespace taskmanager
+```bash
+kubectl wait --for=condition=ready pod -l app=backend -n devops-app --timeout=300s
+```
+
+Verify backend deployment:
+
+```bash
+kubectl get pods -n devops-app -l app=backend
+kubectl get svc -n devops-app -l app=backend
+```
+
+Check backend logs:
+
+```bash
+kubectl logs -f deployment/backend -n devops-app
+```
+
+### Step 8: Deploy Frontend Application
+
+```bash
+kubectl apply -f k8s/frontend-deployment.yaml -n devops-app
+```
+
+Wait for frontend pods to be ready:
+
+```bash
+kubectl wait --for=condition=ready pod -l app=frontend -n devops-app --timeout=300s
+```
+
+Verify frontend deployment:
+
+```bash
+kubectl get pods -n devops-app -l app=frontend
+kubectl get svc -n devops-app -l app=frontend
+```
+
+Check frontend logs:
+
+```bash
+kubectl logs -f deployment/frontend -n devops-app
+```
+
+### Step 9: Configure Ingress
+
+Apply Ingress configuration:
+
+```bash
+kubectl apply -f k8s/ingress.yaml -n devops-app
+```
+
+Verify Ingress creation:
+
+```bash
+kubectl get ingress -n devops-app
+```
+
+For Minikube, get the Ingress IP:
+
+```bash
+minikube service -n devops-app frontend --url
+```
+
+### Step 10: Verify All Deployments
+
+Check all resources in the namespace:
+
+```bash
+kubectl get all -n devops-app
+```
+
+This shows:
+- Pods (containers running)
+- Services (load balancers)
+- Deployments (desired state)
+- StatefulSets (if applicable)
+- ReplicaSets (pod replicas)
+
+### Step 11: Port Forward for Testing (Local Testing)
+
+Test backend through port forwarding:
+
+```bash
+kubectl port-forward -n devops-app svc/backend 5000:5000 &
+curl http://localhost:5000
+```
+
+Test frontend through port forwarding:
+
+```bash
+kubectl port-forward -n devops-app svc/frontend 80:80 &
+curl http://localhost
 ```
 
 ---
 
-## Jenkins CI/CD Pipeline
+## Jenkins CI/CD Setup
 
-Jenkins automates the build, test, and deployment process.
+### Step 1: Access Jenkins Dashboard
 
-### Jenkins Pipeline Stages
-
-The `Jenkinsfile` defines the following stages:
-
-1. **Git Checkout**: Pull latest code from repository
-2. **SonarQube Analysis**: Code quality and security scan
-3. **Docker Build**: Build backend and frontend images
-4. **Push to Registry**: Push images to Docker registry
-5. **Deploy to Kubernetes**: Roll out new versions
-
-### Setup Jenkins
-
-#### Option A: Jenkins in Docker
+Get Jenkins initial admin password:
 
 ```bash
-# Run Jenkins in Docker
-docker run -d \
-  --name jenkins \
-  -p 8080:8080 \
-  -p 50000:50000 \
-  -v jenkins_home:/var/jenkins_home \
-  jenkins/jenkins:latest
-
-# Get initial admin password
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
-
-# Access Jenkins
-# Open browser: http://localhost:8080
-# Paste the password from above
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 ```
 
-#### Option B: Jenkins on Local Machine
+Copy this password.
 
-1. Download Jenkins from: https://www.jenkins.io/download/
-2. Follow installation instructions for your OS
-3. Access Jenkins at: http://localhost:8080
+Open browser and navigate to:
 
-### Configure Jenkins Pipeline
+```
+http://your-instance-ip:8080
+```
 
-1. **Create New Job**
-   - Click "New Item"
-   - Enter job name: "TaskManager-Pipeline"
-   - Select "Pipeline"
-   - Click "OK"
+### Step 2: Complete Jenkins Setup
 
-2. **Configure Pipeline**
-   - Under "Pipeline" section
-   - Select "Pipeline script from SCM"
-   - Set SCM to "Git"
-   - Enter repository URL: `https://github.com/yourusername/Python-DevOps.git`
-   - Set script path to: `Jenkinsfile`
-   - Click "Save"
+1. Paste the initial admin password
+2. Click "Continue"
+3. Choose "Install suggested plugins"
+4. Wait for plugin installation to complete
+5. Create first admin user:
+   - Username: admin
+   - Password: (choose strong password)
+   - Full name: Administrator
+   - Email: your-email@example.com
+6. Click "Save and Continue"
+7. Configure Jenkins URL (use your instance IP)
+8. Click "Save and Finish"
 
-3. **Run Pipeline**
-   - Click "Build Now"
-   - Monitor progress in "Console Output"
+### Step 3: Configure Jenkins Credentials
 
-### Jenkinsfile Explained
+1. Navigate to Jenkins Dashboard
+2. Click "Manage Jenkins" → "Manage Credentials"
+3. Click on "global" store
+4. Click "Add Credentials"
+5. Add your credentials:
+   - SSH key (for Git access)
+   - Docker Hub credentials (for pushing images)
+   - AWS credentials (if deploying to AWS)
 
-The `Jenkinsfile` contains the pipeline definition:
+### Step 4: Create Pipeline Job
+
+1. Click "New Item"
+2. Enter job name (e.g., "Python-DevOps-Pipeline")
+3. Select "Pipeline"
+4. Click "OK"
+
+### Step 5: Configure Pipeline Script
+
+In the Pipeline section, add the Jenkinsfile from your repository:
 
 ```groovy
+// Jenkinsfile content
 pipeline {
     agent any
     
     stages {
         stage('Checkout') {
             steps {
-                git 'repository-url'
+                git 'https://github.com/your-username/Python-DevOps.git'
             }
         }
         
-        stage('SonarQube Analysis') {
+        stage('Build') {
             steps {
-                // Code quality scan
+                sh '''
+                    docker-compose build
+                '''
             }
         }
         
-        stage('Build Docker Images') {
+        stage('Test') {
             steps {
-                // Build backend and frontend
+                sh '''
+                    docker-compose run backend pytest
+                '''
             }
         }
         
-        stage('Push Images') {
+        stage('Push') {
             steps {
-                // Push to Docker registry
+                sh '''
+                    docker tag backend:latest your-registry/backend:latest
+                    docker push your-registry/backend:latest
+                '''
             }
         }
         
         stage('Deploy') {
             steps {
-                // Deploy to Kubernetes
+                sh '''
+                    kubectl apply -f k8s/
+                '''
             }
         }
     }
 }
 ```
 
----
+### Step 6: Configure Webhook (Optional)
 
-## SonarQube Code Quality
+For automatic builds on Git push:
 
-SonarQube analyzes code for bugs, vulnerabilities, and code smells.
+1. Go to your GitHub repository settings
+2. Click "Webhooks"
+3. Click "Add webhook"
+4. Payload URL: `http://your-instance-ip:8080/github-webhook/`
+5. Content type: `application/json`
+6. Events: Push events
+7. Active: Yes
+8. Click "Add webhook"
 
-### Setup SonarQube
+### Step 7: Run First Build
 
-#### Option A: Docker
+1. Click "Build Now" in Jenkins job
+2. Monitor build progress in "Console Output"
+3. Check build results
 
-```bash
-# Run SonarQube in Docker
-docker run -d \
-  --name sonarqube \
-  -p 9000:9000 \
-  sonarqube:latest
-
-# Wait for startup (2-3 minutes)
-# Access: http://localhost:9000
-# Default credentials: admin / admin
-```
-
-#### Option B: Docker Compose
+Monitor logs:
 
 ```bash
-# Add to docker-compose.yml and run
-docker-compose up -d sonarqube
-
-# Access: http://localhost:9000
+tail -f /var/log/jenkins/jenkins.log
 ```
-
-### Run SonarQube Analysis
-
-#### Using Jenkins (Automated)
-- Jenkins pipeline automatically runs SonarQube analysis
-- Results appear in the Quality Gate
-
-#### Manual Analysis
-
-```bash
-# Install SonarQube Scanner
-# Download from: https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/
-
-# Run analysis
-sonar-scanner \
-  -Dsonar.projectKey=TaskManager \
-  -Dsonar.sources=. \
-  -Dsonar.host.url=http://localhost:9000 \
-  -Dsonar.login=admin \
-  -Dsonar.password=admin
-```
-
-### Quality Gate
-
-A Quality Gate blocks deployments if code quality issues are found:
-
-- **Coverage**: Code test coverage threshold
-- **Bugs**: Maximum allowed bugs
-- **Vulnerabilities**: Maximum allowed security issues
-- **Code Smells**: Maximum allowed code smells
-
-If the Quality Gate fails, the Jenkins pipeline stops, preventing bad code deployment.
 
 ---
 
 ## Monitoring with Prometheus and Grafana
 
-### Prometheus
+### Step 1: Review Monitoring Configuration
 
-Prometheus collects metrics from your applications.
-
-#### Deploy Prometheus
+Check Prometheus configuration:
 
 ```bash
-# Deploy Prometheus to Kubernetes
+cat monitoring/prometheus-config.yaml
+```
+
+Check Grafana configuration:
+
+```bash
+cat monitoring/grafana-deployment.yaml
+cat monitoring/grafana-dashboard.json
+```
+
+### Step 2: Deploy Prometheus
+
+If using Kubernetes:
+
+```bash
 kubectl apply -f monitoring/prometheus-rbac.yaml
 kubectl apply -f monitoring/prometheus-deployment.yaml
-
-# Verify Prometheus is running
-kubectl get pods -n taskmanager
-
-# Access Prometheus (port forward)
-kubectl port-forward svc/prometheus 9090:9090 -n taskmanager
-
-# Open browser: http://localhost:9090
 ```
 
-#### Prometheus Configuration
-
-The `prometheus-config.yaml` defines:
-- **Scrape targets**: Which services to monitor
-- **Metrics**: What to collect
-- **Intervals**: How often to collect
-
-### Grafana
-
-Grafana creates dashboards and visualizes Prometheus metrics.
-
-#### Deploy Grafana
+For Docker Compose, add to docker-compose.yml or run:
 
 ```bash
-# Deploy Grafana to Kubernetes
-kubectl apply -f monitoring/grafana-deployment.yaml
-
-# Get Grafana admin password
-kubectl get secret -n taskmanager grafana -o jsonpath="{.data.admin-password}" | base64 --decode
-
-# Access Grafana (port forward)
-kubectl port-forward svc/grafana 3000:3000 -n taskmanager
-
-# Open browser: http://localhost:3000
-# Login: admin / <password from above>
+docker run -d \
+  --name prometheus \
+  -p 9090:9090 \
+  -v ~/projects/Python-DevOps/monitoring/prometheus-config.yaml:/etc/prometheus/prometheus.yml \
+  prom/prometheus:latest
 ```
 
-#### Add Prometheus as Data Source
+Verify Prometheus is running:
 
-1. Go to Configuration → Data Sources
-2. Click "Add data source"
-3. Select "Prometheus"
-4. Set URL to: `http://prometheus:9090`
-5. Click "Save & Test"
+```bash
+curl http://localhost:9090
+```
 
-#### Import Dashboards
+Access Prometheus dashboard:
 
-1. Go to Dashboards → Import
-2. Enter dashboard ID from: https://grafana.com/grafana/dashboards/
-3. Select Prometheus as data source
+```
+http://your-instance-ip:9090
+```
+
+### Step 3: Deploy Grafana
+
+If using Kubernetes:
+
+```bash
+kubectl apply -f monitoring/grafana-datasource.yaml
+kubectl apply -f monitoring/grafana-deployment.yaml
+kubectl apply -f monitoring/grafana-dashboard-config.yaml
+```
+
+For Docker Compose:
+
+```bash
+docker run -d \
+  --name grafana \
+  -p 3000:3000 \
+  -e GF_SECURITY_ADMIN_PASSWORD=admin \
+  grafana/grafana:latest
+```
+
+Access Grafana dashboard:
+
+```
+http://your-instance-ip:3000
+```
+
+Default credentials:
+- Username: admin
+- Password: admin (change on first login)
+
+### Step 4: Configure Data Source in Grafana
+
+1. Navigate to Grafana
+2. Click "Configuration" → "Data Sources"
+3. Click "Add data source"
+4. Select "Prometheus"
+5. Configure URL: `http://prometheus:9090`
+6. Click "Save & Test"
+
+### Step 5: Import Grafana Dashboard
+
+1. Click "+" → "Import"
+2. Upload the dashboard JSON file: `monitoring/grafana-dashboard.json`
+3. Select Prometheus data source
 4. Click "Import"
 
-### Metrics to Monitor
+### Step 6: View Metrics
 
-**Application Metrics:**
-- Request latency
-- Error rate
-- Request count
-- Database connection pool
-- Memory usage
+Monitor application performance:
+
+1. Check available metrics in Prometheus dashboard
+2. View dashboards in Grafana
+3. Set up alerts for critical metrics
+
+Example metrics to monitor:
 - CPU usage
-
-**Infrastructure Metrics:**
-- Pod CPU usage
-- Pod memory usage
-- Network I/O
-- Disk I/O
+- Memory usage
+- Request latency
+- Error rates
+- Database connection pool status
 
 ---
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Issue: Docker Services Won't Start
 
-#### 1. Docker Not Running
-```bash
-# Error: Cannot connect to Docker daemon
+**Problem**: `docker-compose up` fails or services don't start.
 
-# Solution: Start Docker Desktop
-# macOS/Windows: Open Docker Desktop application
-# Linux: sudo systemctl start docker
-```
+**Solution**:
 
-#### 2. Port Already in Use
-```bash
-# Error: Address already in use
+1. Check Docker daemon status:
+   ```bash
+   sudo systemctl status docker
+   ```
 
-# Find process using port
-# Windows: netstat -ano | findstr :8888
-# macOS/Linux: lsof -i :8888
+2. Start Docker if stopped:
+   ```bash
+   sudo systemctl start docker
+   ```
 
-# Kill process
-# Windows: taskkill /PID <pid> /F
-# macOS/Linux: kill -9 <pid>
-```
+3. Check Docker Compose syntax:
+   ```bash
+   docker-compose config
+   ```
 
-#### 3. Database Connection Error
-```bash
-# Error: could not connect to server
+4. View detailed error logs:
+   ```bash
+   docker-compose logs
+   ```
 
-# Solution: Verify PostgreSQL is running
-docker ps  # Check if postgres container is running
-docker-compose logs postgres  # View PostgreSQL logs
+### Issue: PostgreSQL Connection Refused
 
-# Verify credentials in .env file
-cat backend/.env
-```
+**Problem**: Cannot connect to PostgreSQL database.
 
-#### 4. Kubernetes Pod Stuck in Pending
-```bash
-# Check pod status
-kubectl describe pod <pod-name> -n taskmanager
+**Solution**:
 
-# Common causes:
-# - Insufficient resources
-# - Image pull error
-# - Volume mount failure
+1. Check if PostgreSQL container is running:
+   ```bash
+   docker-compose ps postgres
+   ```
 
-# View node resources
-kubectl top nodes
-kubectl describe node <node-name>
-```
+2. Wait for PostgreSQL to initialize (30-60 seconds):
+   ```bash
+   docker-compose logs postgres
+   ```
 
-#### 5. Jenkins Build Fails
-```bash
-# Check Jenkins logs
-docker logs jenkins  # If using Docker
+3. Verify connection string in backend config:
+   ```bash
+   cat backend/config.py
+   ```
 
-# Check console output
-# Open Jenkins web UI → Job → Build Number → Console Output
+4. Test connection manually:
+   ```bash
+   docker-compose exec postgres psql -U appuser -d appdb -c "SELECT 1;"
+   ```
 
-# Common causes:
-# - Git clone failure (check credentials)
-# - Docker build failure (check Dockerfile)
-# - SonarQube quality gate failure (check code quality)
-```
+### Issue: Port Already in Use
 
-#### 6. Application Won't Start
-```bash
-# View application logs
-docker-compose logs <service>
-kubectl logs <pod-name> -n taskmanager
+**Problem**: `bind: address already in use` error.
 
-# Common causes:
-# - Missing environment variables
-# - Database connection issues
-# - Port conflicts
-# - Missing dependencies
-```
+**Solution**:
 
-### Debug Commands
+1. Find process using the port:
+   ```bash
+   sudo lsof -i :5000  # For port 5000
+   sudo lsof -i :80    # For port 80
+   ```
 
-```bash
-# Docker debugging
-docker inspect <container-name>  # View container details
-docker stats  # View resource usage
-docker exec -it <container> /bin/bash  # Execute shell in container
+2. Kill the process:
+   ```bash
+   sudo kill -9 <PID>
+   ```
 
-# Kubernetes debugging
-kubectl describe pod <pod-name> -n taskmanager  # Detailed pod info
-kubectl logs <pod-name> -n taskmanager  # Pod logs
-kubectl port-forward pod/<pod-name> 8888:8888 -n taskmanager  # Local access
-kubectl get events -n taskmanager  # System events
+3. Or change the port in docker-compose.yml:
+   ```yaml
+   ports:
+     - "5001:5000"  # Use 5001 instead of 5000
+   ```
 
-# Network debugging
-curl http://localhost:8888  # Test backend
-curl http://localhost  # Test frontend
-ping container-name  # Test DNS resolution (within container)
-```
+### Issue: Kubernetes Pod Crashes
+
+**Problem**: Pods are in CrashLoopBackOff state.
+
+**Solution**:
+
+1. Check pod status:
+   ```bash
+   kubectl get pods -n devops-app
+   kubectl describe pod <pod-name> -n devops-app
+   ```
+
+2. View pod logs:
+   ```bash
+   kubectl logs <pod-name> -n devops-app
+   kubectl logs <pod-name> -n devops-app --previous
+   ```
+
+3. Check resource limits:
+   ```bash
+   kubectl describe node
+   ```
+
+4. Check if secrets exist:
+   ```bash
+   kubectl get secrets -n devops-app
+   ```
+
+### Issue: Backend Application Won't Start
+
+**Problem**: Backend fails to start with Python errors.
+
+**Solution**:
+
+1. Check Python dependencies:
+   ```bash
+   cd backend
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. Verify Python version:
+   ```bash
+   python --version
+   ```
+
+3. Check for missing environment variables:
+   ```bash
+   cat backend/config.py
+   ```
+
+4. Run migrations if needed:
+   ```bash
+   cd backend
+   python run.py db upgrade
+   ```
+
+### Issue: Frontend Not Loading
+
+**Problem**: Frontend shows 404 or blank page.
+
+**Solution**:
+
+1. Check if frontend service is running:
+   ```bash
+   docker-compose ps frontend
+   curl http://localhost
+   ```
+
+2. Check nginx configuration:
+   ```bash
+   docker-compose exec frontend nginx -t
+   ```
+
+3. Verify static files are in correct location:
+   ```bash
+   docker-compose exec frontend ls -la /usr/share/nginx/html
+   ```
+
+4. Check frontend logs:
+   ```bash
+   docker-compose logs frontend
+   ```
+
+### Issue: Jenkins Build Fails
+
+**Problem**: Jenkins pipeline jobs are failing.
+
+**Solution**:
+
+1. Check Jenkins logs:
+   ```bash
+   sudo tail -f /var/log/jenkins/jenkins.log
+   ```
+
+2. Check if Docker is accessible from Jenkins:
+   ```bash
+   docker ps
+   ```
+
+3. Verify Jenkins has permissions:
+   ```bash
+   sudo usermod -a -G docker jenkins
+   sudo systemctl restart jenkins
+   ```
+
+4. Check Git credentials:
+   - Jenkins Dashboard → Manage Credentials
+   - Verify SSH keys or tokens are correct
+
+5. Check build console output:
+   - Click on failed build
+   - Click "Console Output"
+   - Look for error messages
+
+### Issue: High Memory Usage
+
+**Problem**: System running out of memory.
+
+**Solution**:
+
+1. Check memory usage:
+   ```bash
+   free -h
+   ```
+
+2. Stop unnecessary services:
+   ```bash
+   docker-compose stop jenkins  # If not needed
+   ```
+
+3. Remove unused Docker resources:
+   ```bash
+   docker system prune -a
+   ```
+
+4. Increase swap space:
+   ```bash
+   sudo dd if=/dev/zero of=/swapfile bs=1G count=2
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   ```
+
+### Issue: SSL Certificate Errors
+
+**Problem**: HTTPS/SSL certificate issues.
+
+**Solution**:
+
+1. Install Certbot for Let's Encrypt:
+   ```bash
+   sudo yum install -y certbot python3-certbot-nginx
+   ```
+
+2. Generate certificate:
+   ```bash
+   sudo certbot certonly --standalone -d your-domain.com
+   ```
+
+3. Update nginx configuration with certificate paths
+
+4. Enable auto-renewal:
+   ```bash
+   sudo systemctl enable certbot-renew.timer
+   sudo systemctl start certbot-renew.timer
+   ```
 
 ---
 
-## Project Structure
+## Verification and Testing
+
+### Step 1: Verify All Services Are Running
+
+```bash
+# Docker Compose
+docker-compose ps
+
+# Kubernetes
+kubectl get all -n devops-app
+
+# System services
+sudo systemctl status docker
+sudo systemctl status jenkins
+```
+
+### Step 2: Test Backend API
+
+Test basic endpoint:
+
+```bash
+curl http://localhost:5000/
+```
+
+Test specific routes (adjust based on your API):
+
+```bash
+curl http://localhost:5000/api/users
+curl http://localhost:5000/api/health
+```
+
+### Step 3: Test Frontend
+
+Open browser and verify:
 
 ```
-Python-DevOps/
-├── backend/
-│   ├── app/
-│   │   ├── __init__.py          # Flask app initialization
-│   │   ├── models.py            # Database models
-│   │   ├── routes.py            # API endpoints
-│   │   └── __pycache__/
-│   ├── instance/                # Flask instance folder
-│   ├── static/                  # Static files
-│   ├── templates/               # HTML templates
-│   ├── config.py               # Configuration (Dev/Prod/Test)
-│   ├── run.py                  # Application entry point
-│   ├── utils.py                # Utility functions
-│   ├── requirements.txt        # Python dependencies
-│   └── Dockerfile              # Docker image definition
-│
-├── frontend/
-│   ├── css/
-│   │   └── style.css           # Stylesheet
-│   ├── js/
-│   │   ├── app.js              # Main application logic
-│   │   ├── auth.js             # Authentication handling
-│   │   ├── dashboard.js        # Dashboard functionality
-│   │   ├── tasks.js            # Task management
-│   │   └── ...other modules
-│   ├── templates/
-│   │   ├── index.html          # Home page
-│   │   ├── login.html          # Login page
-│   │   ├── dashboard.html      # Dashboard page
-│   │   └── ...other pages
-│   ├── nginx.conf              # Nginx configuration
-│   └── Dockerfile              # Docker image definition
-│
-├── k8s/
-│   ├── namespace.yaml          # Kubernetes namespace
-│   ├── secrets.yaml            # Database credentials
-│   ├── postgres-pvc.yaml       # Persistent volume for database
-│   ├── postgres-deployment.yaml # PostgreSQL deployment
-│   ├── backend-deployment.yaml  # Flask backend deployment
-│   ├── frontend-deployment.yaml # Nginx frontend deployment
-│   └── ingress.yaml            # Ingress configuration
-│
-├── monitoring/
-│   ├── prometheus-rbac.yaml    # Prometheus RBAC
-│   ├── prometheus-deployment.yaml # Prometheus deployment
-│   ├── prometheus-config.yaml  # Prometheus configuration
-│   ├── grafana-deployment.yaml # Grafana deployment
-│   ├── grafana-dashboard.json  # Grafana dashboard
-│   └── grafana-datasource.yaml # Grafana data source config
-│
-├── jenkins/
-│   ├── jenkins-rbac.yaml       # Jenkins RBAC
-│   └── jenkins-deployment.yaml # Jenkins deployment
-│
-├── docker-compose.yml          # Multi-container setup
-├── Jenkinsfile                 # CI/CD pipeline definition
-├── README.md                   # This file
-├── INTERVIEW-PROJECT-EXPLANATION.md  # Detailed project explanation
-├── VALIDATION-REPORT.md        # Project validation results
-└── PROJECT-QUESTION-BANK.md    # Interview questions
-
+http://your-instance-ip
 ```
+
+Ensure:
+- Page loads without errors
+- Static assets load (CSS, JavaScript)
+- Can navigate through pages
+- Forms work correctly
+
+### Step 4: Test Database Connectivity
+
+```bash
+# Through Docker Compose
+docker-compose exec postgres psql -U appuser -d appdb -c "SELECT COUNT(*) FROM information_schema.tables;"
+
+# Through Kubernetes
+kubectl exec -it -n devops-app <postgres-pod-name> -- psql -U appuser -d appdb -c "\dt"
+```
+
+### Step 5: Test End-to-End Flow
+
+1. Log in to frontend (if authentication required)
+2. Perform a database operation (create, read, update, delete)
+3. Verify data is persisted in database
+4. Check logs for errors
+
+### Step 6: Performance Testing
+
+Load test the backend:
+
+```bash
+# Install Apache Bench
+sudo yum install -y httpd-tools
+
+# Run load test
+ab -n 1000 -c 10 http://localhost:5000/
+```
+
+Monitor performance:
+
+```bash
+# Check system resources during test
+top
+free -h
+iostat -x 1
+```
+
+### Step 7: Health Check Endpoints
+
+Verify application health endpoints:
+
+```bash
+curl -v http://localhost:5000/health
+curl -v http://localhost:5000/api/status
+```
+
+### Step 8: Security Verification
+
+Verify security headers:
+
+```bash
+curl -I http://localhost:5000
+```
+
+Look for:
+- X-Frame-Options
+- X-Content-Type-Options
+- Content-Security-Policy
+- Strict-Transport-Security
+
+### Step 9: Log Verification
+
+Check for error messages in logs:
+
+```bash
+# Docker Compose
+docker-compose logs | grep -i error
+
+# Kubernetes
+kubectl logs -n devops-app --all-containers --tail=100
+```
+
+### Step 10: Monitoring Verification
+
+Verify metrics collection:
+
+1. Prometheus Dashboard: http://your-instance-ip:9090
+   - Check "Targets" section
+   - Verify all endpoints are "UP"
+
+2. Grafana Dashboard: http://your-instance-ip:3000
+   - View configured dashboards
+   - Check metric values updating in real-time
 
 ---
 
-## Quick Start Guide
+## Maintenance and Best Practices
 
-For experienced users, here's the quickest way to get started:
+### Regular Backups
+
+Backup database regularly:
 
 ```bash
-# 1. Clone and enter project
-git clone <repo-url>
-cd Python-DevOps
+docker-compose exec postgres pg_dump -U appuser appdb > backup_$(date +%Y%m%d_%H%M%S).sql
+```
 
-# 2. Start with Docker Compose
-docker-compose up -d
+Backup volumes:
 
-# 3. Access services
-# Frontend: http://localhost
-# Backend: http://localhost:8888
-
-# 4. Stop when done
+```bash
 docker-compose down
+tar -czf docker_volumes_backup_$(date +%Y%m%d_%H%M%S).tar.gz /var/lib/docker/volumes/
+docker-compose up -d
+```
+
+### Update Dependencies
+
+Update Python packages periodically:
+
+```bash
+cd backend
+source venv/bin/activate
+pip install --upgrade pip
+pip list --outdated
+pip install --upgrade <package-name>
+```
+
+Update system packages:
+
+```bash
+sudo yum update -y
+```
+
+### Monitor Disk Space
+
+Check disk usage:
+
+```bash
+df -h
+du -sh /var/lib/docker/
+```
+
+Clean up Docker:
+
+```bash
+docker system prune -a --volumes
+```
+
+### Security Hardening
+
+1. Keep systems updated
+2. Use strong passwords
+3. Implement firewall rules
+4. Use SSH keys instead of passwords
+5. Enable audit logging
+6. Regularly scan for vulnerabilities
+7. Use secrets management (AWS Secrets Manager, HashiCorp Vault)
+
+### Scaling Considerations
+
+For production scaling:
+
+1. Use Kubernetes for orchestration
+2. Implement horizontal pod autoscaling:
+
+```bash
+kubectl autoscale deployment backend -n devops-app --min=2 --max=5
+```
+
+3. Use managed databases instead of containers
+4. Implement caching (Redis)
+5. Use CDN for static content
+6. Load balance traffic (ELB/ALB)
+
+---
+
+## Quick Reference Commands
+
+```bash
+# Docker Compose Commands
+docker-compose up -d              # Start all services
+docker-compose down               # Stop all services
+docker-compose logs -f            # View logs
+docker-compose ps                 # List services
+docker-compose exec <service> bash # Access service
+
+# Kubernetes Commands
+kubectl get all -n devops-app     # List all resources
+kubectl logs <pod> -n devops-app  # View pod logs
+kubectl describe pod <pod> -n devops-app # Detailed pod info
+kubectl port-forward <pod> 8000:5000 # Port forwarding
+kubectl apply -f <file>           # Apply manifest
+kubectl delete -f <file>          # Delete resource
+
+# Useful Docker Commands
+docker ps                         # List running containers
+docker images                     # List images
+docker build -t name:tag .        # Build image
+docker push registry/name:tag     # Push image
+docker inspect <container>        # Get container details
+
+# System Commands
+top                              # Monitor processes
+free -h                          # Check memory
+df -h                            # Check disk space
+sudo systemctl status <service>  # Check service status
+sudo journalctl -u <service> -f  # View service logs
 ```
 
 ---
 
-## Best Practices
+## Support and Documentation
 
-### Development
-- Always use virtual environment for Python development
-- Set `FLASK_ENV=development` for debugging
-- Use `.env` files for sensitive data (never commit to Git)
-- Run SonarQube before committing code
+For more information, refer to:
 
-### Testing
-- Test locally with Docker Compose before Kubernetes
-- Use separate databases for testing (in-memory SQLite)
-- Monitor logs for errors and warnings
-
-### Production
-- Set `FLASK_ENV=production`
-- Use strong, unique SECRET_KEY and database passwords
-- Enable HTTPS/SSL for all communications
-- Configure resource limits in Kubernetes
-- Set up monitoring and alerting
-- Regular backups of PostgreSQL data
-
-### Security
-- Never hardcode credentials in code
-- Use Kubernetes Secrets for sensitive data
-- Implement authentication and authorization
-- Use SonarQube Quality Gate to prevent vulnerable code
-- Regularly update dependencies for security patches
+- [Docker Documentation](https://docs.docker.com)
+- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Jenkins Documentation](https://www.jenkins.io/doc/)
+- [Prometheus Documentation](https://prometheus.io/docs/)
+- [Grafana Documentation](https://grafana.com/docs/)
 
 ---
 
-## Additional Resources
+## Conclusion
 
-- **Flask Documentation**: https://flask.palletsprojects.com/
-- **SQLAlchemy Documentation**: https://docs.sqlalchemy.org/
-- **Docker Documentation**: https://docs.docker.com/
-- **Kubernetes Documentation**: https://kubernetes.io/docs/
-- **Jenkins Documentation**: https://www.jenkins.io/doc/
-- **Prometheus Documentation**: https://prometheus.io/docs/
-- **Grafana Documentation**: https://grafana.com/docs/
+You now have a complete deployment setup for your Python DevOps application on Amazon Linux 2023. Follow these steps carefully, and your application should be running smoothly with proper monitoring, CI/CD, and containerization in place.
+
+For troubleshooting and advanced configurations, refer to the individual tool documentation and the troubleshooting section above.
 
 ---
 
-## Support and Contributions
-
-For issues, questions, or contributions:
-
-1. Check the **Troubleshooting** section above
-2. Review the **INTERVIEW-PROJECT-EXPLANATION.md** for architecture details
-3. Open an issue on the repository
-4. Submit a pull request with improvements
-
----
-
-## License
-
-This project is provided as-is for educational and portfolio purposes.
-
----
-
-## Changelog
-
-### Version 1.0.0 (February 2026)
-- Initial project setup with Flask backend
-- PostgreSQL database integration
-- Nginx frontend with static files
-- Docker and Docker Compose support
-- Kubernetes deployment manifests
-- Jenkins CI/CD pipeline
-- SonarQube integration
-- Prometheus and Grafana monitoring
-- Comprehensive documentation
-
----
-
-**Last Updated**: February 1, 2026  
-**Project Status**: Production Ready  
-**Maintainer**: Your Name / Team
+**Last Updated**: February 2, 2026
+**Version**: 1.0
+**Maintainer**: DevOps Team

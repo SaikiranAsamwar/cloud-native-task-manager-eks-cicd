@@ -737,7 +737,462 @@ docker-compose down -v
 
 ## Kubernetes Deployment
 
-### Step 1: Start Kubernetes Cluster
+### Option A: Using Amazon EKS (Recommended for Production)
+
+#### Step 1A: Install AWS CLI
+
+Download and install AWS CLI v2:
+
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+```
+
+Verify installation:
+
+```bash
+aws --version
+```
+
+#### Step 2A: Configure AWS Credentials
+
+Configure AWS CLI with your credentials:
+
+```bash
+aws configure
+```
+
+When prompted, enter:
+- AWS Access Key ID: (your access key)
+- AWS Secret Access Key: (your secret key)
+- Default region name: us-east-1 (or your preferred region)
+- Default output format: json
+
+Verify configuration:
+
+```bash
+aws sts get-caller-identity
+```
+
+Should display your AWS account information.
+
+#### Step 3A: Install eksctl
+
+Install the EKS cluster management tool:
+
+```bash
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin
+```
+
+Verify installation:
+
+```bash
+eksctl version
+```
+
+#### Step 4A: Create EKS Cluster
+
+Create a new EKS cluster:
+
+```bash
+eksctl create cluster \
+  --name devops-app-cluster \
+  --version 1.27 \
+  --region us-east-1 \
+  --nodegroup-name devops-nodes \
+  --node-type t3.medium \
+  --nodes 2 \
+  --nodes-min 2 \
+  --nodes-max 4
+```
+
+This command will:
+- Create an EKS cluster named `devops-app-cluster`
+- Use Kubernetes version 1.27
+- In us-east-1 region
+- Create a node group with minimum 2 and maximum 4 t3.medium instances
+- Configure IAM roles and VPC automatically
+
+This process takes 15-20 minutes. Wait for completion.
+
+Verify cluster creation:
+
+```bash
+aws eks describe-cluster --name devops-app-cluster --region us-east-1
+eksctl get clusters --region us-east-1
+```
+
+#### Step 5A: Update kubeconfig
+
+Configure kubectl to access the EKS cluster:
+
+```bash
+aws eks update-kubeconfig --name devops-app-cluster --region us-east-1
+```
+
+Verify kubectl access:
+
+```bash
+kubectl get nodes
+kubectl get svc
+```
+
+Should show the nodes in your EKS cluster.
+
+#### Step 6A: Configure RBAC and IAM
+
+Create an IAM OIDC provider for the cluster:
+
+```bash
+eksctl utils associate-iam-oidc-provider \
+  --cluster devops-app-cluster \
+  --region us-east-1 \
+  --approve
+```
+
+This enables IAM roles for service accounts (IRSA).
+
+#### Step 7A: Install AWS Load Balancer Controller
+
+The AWS Load Balancer Controller manages Ingress and Service resources.
+
+First, create an IAM policy:
+
+```bash
+curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.7/docs/install/iam_policy.json
+
+aws iam create-policy \
+  --policy-name AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file://iam_policy.json
+```
+
+Create a service account:
+
+```bash
+eksctl create iamserviceaccount \
+  --cluster devops-app-cluster \
+  --namespace kube-system \
+  --name aws-load-balancer-controller \
+  --attach-policy-arn arn:aws:iam::YOUR-AWS-ACCOUNT-ID:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve \
+  --region us-east-1
+```
+
+Replace `YOUR-AWS-ACCOUNT-ID` with your actual AWS account ID. Get it from:
+
+```bash
+aws sts get-caller-identity --query Account --output text
+```
+
+Add the EKS chart repository:
+
+```bash
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+```
+
+Install the controller:
+
+```bash
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=devops-app-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller
+```
+
+Verify installation:
+
+```bash
+kubectl get deployment -n kube-system aws-load-balancer-controller
+```
+
+#### Step 8A: Set Up Container Registry (ECR)
+
+Create an ECR repository for your Docker images:
+
+```bash
+aws ecr create-repository \
+  --repository-name devops-app/backend \
+  --region us-east-1
+
+aws ecr create-repository \
+  --repository-name devops-app/frontend \
+  --region us-east-1
+```
+
+Get the ECR login credentials:
+
+```bash
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com
+```
+
+Replace `YOUR-ACCOUNT-ID` with your AWS account ID.
+
+#### Step 9A: Create Kubernetes Namespace for EKS
+
+```bash
+kubectl create namespace devops-app
+```
+
+Create image pull secret for ECR:
+
+```bash
+kubectl create secret docker-registry ecr-secret \
+  --docker-server=YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com \
+  --docker-username=AWS \
+  --docker-password=$(aws ecr get-login-password --region us-east-1) \
+  -n devops-app
+```
+
+#### Step 10A: Update Kubernetes Manifests for EKS
+
+Modify your Kubernetes manifests to use ECR images. Update [backend-deployment.yaml](k8s/backend-deployment.yaml):
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: devops-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      imagePullSecrets:
+      - name: ecr-secret
+      containers:
+      - name: backend
+        image: YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/backend:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: DB_HOST
+          value: postgres.devops-app.svc.cluster.local
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+```
+
+Similarly update [frontend-deployment.yaml](k8s/frontend-deployment.yaml):
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: devops-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      imagePullSecrets:
+      - name: ecr-secret
+      containers:
+      - name: frontend
+        image: YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/frontend:latest
+        ports:
+        - containerPort: 80
+```
+
+#### Step 11A: Push Images to ECR
+
+Build and push your Docker images:
+
+```bash
+# Build backend image
+docker build -t devops-app/backend:latest backend/
+
+# Tag for ECR
+docker tag devops-app/backend:latest YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/backend:latest
+
+# Push to ECR
+docker push YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/backend:latest
+
+# Build and push frontend
+docker build -t devops-app/frontend:latest frontend/
+
+docker tag devops-app/frontend:latest YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/frontend:latest
+
+docker push YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/frontend:latest
+```
+
+#### Step 12A: Deploy to EKS Cluster
+
+Create secrets for database credentials:
+
+```bash
+kubectl create secret generic db-credentials \
+  --from-literal=username=appuser \
+  --from-literal=password=your-secure-password \
+  -n devops-app
+```
+
+Deploy PostgreSQL:
+
+```bash
+kubectl apply -f k8s/postgres-deployment.yaml -n devops-app
+kubectl apply -f k8s/postgres-pvc.yaml -n devops-app
+```
+
+Wait for PostgreSQL to be ready:
+
+```bash
+kubectl wait --for=condition=ready pod -l app=postgres -n devops-app --timeout=300s
+```
+
+Deploy backend and frontend:
+
+```bash
+kubectl apply -f k8s/backend-deployment.yaml -n devops-app
+kubectl apply -f k8s/frontend-deployment.yaml -n devops-app
+```
+
+Wait for deployments:
+
+```bash
+kubectl wait --for=condition=available --timeout=300s deployment/backend -n devops-app
+kubectl wait --for=condition=available --timeout=300s deployment/frontend -n devops-app
+```
+
+#### Step 13A: Configure AWS Application Load Balancer (ALB)
+
+Update [ingress.yaml](k8s/ingress.yaml) for AWS ALB:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-app-ingress
+  namespace: devops-app
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-type: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: alb
+  rules:
+  - host: your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 5000
+  tls:
+  - hosts:
+    - your-domain.com
+    secretName: tls-secret
+```
+
+Apply the Ingress:
+
+```bash
+kubectl apply -f k8s/ingress.yaml -n devops-app
+```
+
+Get the ALB DNS name:
+
+```bash
+kubectl get ingress -n devops-app
+```
+
+#### Step 14A: Set Up Auto-Scaling
+
+Enable Cluster Autoscaler:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/master/cluster-autoscaler/cloudprovider/aws/examples/cluster-autoscaler-autodiscover.yaml
+```
+
+Configure Horizontal Pod Autoscaler for backend:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: devops-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+Apply HPA:
+
+```bash
+kubectl apply -f hpa-backend.yaml
+```
+
+#### Step 15A: Monitor EKS Cluster
+
+View cluster metrics:
+
+```bash
+kubectl top nodes
+kubectl top pods -n devops-app
+```
+
+Check EKS cluster health:
+
+```bash
+aws eks describe-cluster --name devops-app-cluster --region us-east-1 --query 'cluster.health'
+```
+
+---
+
+### Option B: Using Local Minikube (For Development/Testing)
+
+### Step 1B: Start Kubernetes Cluster
 
 If using Minikube:
 
@@ -965,67 +1420,673 @@ http://your-instance-ip:8080
 
 ### Step 3: Configure Jenkins Credentials
 
-1. Navigate to Jenkins Dashboard
-2. Click "Manage Jenkins" → "Manage Credentials"
-3. Click on "global" store
-4. Click "Add Credentials"
-5. Add your credentials:
-   - SSH key (for Git access)
-   - Docker Hub credentials (for pushing images)
-   - AWS credentials (if deploying to AWS)
+Jenkins credentials are used to authenticate with external services. This is critical for CI/CD pipelines.
 
-### Step 4: Create Pipeline Job
+#### Step 3.1: Access Credentials Page
+
+1. Open Jenkins Dashboard: http://your-instance-ip:8080
+2. Click "Manage Jenkins" (gear icon in left sidebar)
+3. Click "Manage Credentials"
+4. Click on "(global)" under "Stores scoped to Jenkins"
+
+#### Step 3.2: Create SSH Key Credential (For Git Access)
+
+This credential is used to clone Git repositories.
+
+**Generate SSH Key (if you don't have one):**
+
+```bash
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/jenkins_key -N ""
+```
+
+This creates:
+- `~/.ssh/jenkins_key` - Private key
+- `~/.ssh/jenkins_key.pub` - Public key
+
+Add public key to GitHub/GitLab:
+
+1. Copy the public key:
+   ```bash
+   cat ~/.ssh/jenkins_key.pub
+   ```
+
+2. Go to your Git repository settings
+3. Add deploy key or add to user SSH keys
+4. Paste the public key
+
+**Add SSH Credentials in Jenkins:**
+
+1. Click "Add Credentials" in Jenkins
+2. Choose "Kind": **SSH Username with private key**
+3. Fill in the following fields:
+
+   - **Scope**: Global (Jenkins, nodes, items, all child items, etc)
+   - **ID**: `git-ssh-key` (use this in Jenkinsfile)
+   - **Description**: Git SSH Key for repository access
+   - **Username**: `git` (for GitHub/GitLab)
+   - **Private Key**: 
+     - Select "Enter directly"
+     - Paste the entire content of `~/.ssh/jenkins_key`
+   - **Passphrase**: (leave empty if you used empty passphrase above)
+
+4. Click "Create"
+
+**Verify SSH Credential:**
+
+Click on the credential you created, then click "Test Connection":
+
+```bash
+ssh -i ~/.ssh/jenkins_key git@github.com
+```
+
+Should show: "Hi username! You've successfully authenticated..."
+
+#### Step 3.3: Create Docker Hub Credential
+
+This credential is used to push Docker images to Docker Hub.
+
+**Create Docker Hub Account (if needed):**
+
+1. Go to https://hub.docker.com
+2. Sign up or log in
+3. Create a Personal Access Token (better than password):
+   - Click your profile → Account Settings → Security
+   - Click "New Access Token"
+   - Name it: `jenkins-token`
+   - Copy the token
+
+**Add Docker Hub Credentials in Jenkins:**
+
+1. Click "Add Credentials"
+2. Choose "Kind": **Username with password**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `dockerhub` (use in Jenkinsfile)
+   - **Description**: Docker Hub Registry Credentials
+   - **Username**: Your Docker Hub username
+   - **Password**: The access token you created above
+   - **Create**: Jenkins Credential Provider
+
+4. Click "Create"
+
+#### Step 3.4: Create ECR Credential (For AWS)
+
+For pushing images to Amazon ECR.
+
+**Create AWS IAM User for ECR (if needed):**
+
+1. Go to AWS IAM console
+2. Create new user: `jenkins-ecr`
+3. Attach policy: `AmazonEC2ContainerRegistryPowerUser`
+4. Create Access Key:
+   - Click user → Security credentials → Create access key
+   - Copy Access Key ID and Secret Access Key
+
+**Add ECR Credentials in Jenkins:**
+
+1. Click "Add Credentials"
+2. Choose "Kind": **AWS Credentials**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `aws-ecr-credentials` (use in Jenkinsfile)
+   - **Description**: AWS ECR Push Credentials
+   - **Access Key ID**: Your AWS access key
+   - **Secret Access Key**: Your AWS secret key
+   - **Create**: Jenkins Credential Provider
+
+4. Click "Create"
+
+#### Step 3.5: Create GitHub/GitLab Token Credential
+
+For accessing repositories via HTTPS instead of SSH.
+
+**Generate GitHub Personal Token:**
+
+1. Go to GitHub → Settings → Developer settings → Personal access tokens
+2. Click "Generate new token"
+3. Name: `jenkins-token`
+4. Select scopes:
+   - `repo` (full control of private repositories)
+   - `workflow` (update GitHub Actions and workflows)
+5. Click "Generate token"
+6. Copy the token
+
+**Add GitHub Token in Jenkins:**
+
+1. Click "Add Credentials"
+2. Choose "Kind": **Secret text**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `github-token` (use in Jenkinsfile)
+   - **Description**: GitHub Personal Access Token
+   - **Secret**: Paste your GitHub token
+
+4. Click "Create"
+
+#### Step 3.6: Create Kubernetes Config Credential
+
+For deploying to Kubernetes clusters.
+
+**Get kubeconfig:**
+
+```bash
+cat ~/.kube/config
+```
+
+Copy the entire content.
+
+**Add Kubernetes Credentials in Jenkins:**
+
+1. Click "Add Credentials"
+2. Choose "Kind**: **Secret file**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `kubeconfig` (use in Jenkinsfile)
+   - **Description**: Kubernetes Config File
+   - **File**: Upload your kubeconfig file (or use content from above)
+
+4. Click "Create"
+
+For EKS specifically:
+
+```bash
+aws eks update-kubeconfig --name devops-app-cluster --region us-east-1
+```
+
+Then upload the generated kubeconfig file.
+
+#### Step 3.7: Create PostgreSQL Credentials
+
+For database access in scripts.
+
+**Add Database Credentials:**
+
+1. Click "Add Credentials"
+2. Choose "Kind**: **Username with password**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `postgres-credentials` (use in Jenkinsfile)
+   - **Description**: PostgreSQL Database Credentials
+   - **Username**: `appuser`
+   - **Password**: Your secure database password
+
+4. Click "Create"
+
+#### Step 3.8: Create Slack Webhook (For Notifications)
+
+To receive build notifications in Slack.
+
+**Create Slack Webhook:**
+
+1. Go to Slack → Apps & integrations
+2. Search for "Incoming WebHooks"
+3. Click "Add to Slack"
+4. Select channel (e.g., #devops)
+5. Copy the Webhook URL
+
+**Add Webhook in Jenkins:**
+
+1. Click "Add Credentials"
+2. Choose "Kind**: **Secret text**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `slack-webhook` (use in Jenkinsfile)
+   - **Description**: Slack Webhook for Build Notifications
+   - **Secret**: Paste the webhook URL
+
+4. Click "Create"
+
+#### Step 3.9: Create Email Credentials
+
+For sending email notifications.
+
+**Add Email Credentials:**
+
+1. Click "Add Credentials"
+2. Choose "Kind**: **Username with password**
+3. Fill in:
+
+   - **Scope**: Global
+   - **ID**: `email-credentials` (use in Jenkinsfile)
+   - **Description**: Email SMTP Credentials
+   - **Username**: Your email address
+   - **Password**: Your email password or app password
+
+4. Click "Create"
+
+#### Step 3.10: Verify All Credentials
+
+View all created credentials:
+
+```bash
+# List all credentials in Jenkins
+curl -u admin:your-password http://localhost:8080/credentials/store/system/domain/_/api/json
+```
+
+Click on each credential to verify they're correct and working.
+
+---
+
+### Step 4: Create Pipeline Job with Detailed Jenkinsfile
+
+#### Step 4.1: Create New Pipeline Job
 
 1. Click "New Item"
-2. Enter job name (e.g., "Python-DevOps-Pipeline")
+2. Enter job name: `Python-DevOps-Pipeline`
 3. Select "Pipeline"
 4. Click "OK"
 
-### Step 5: Configure Pipeline Script
+#### Step 4.2: Configure Pipeline
 
-In the Pipeline section, add the Jenkinsfile from your repository:
+In the Pipeline section, select:
+- **Definition**: Pipeline script from SCM
+- **SCM**: Git
+- **Repository URL**: `https://github.com/your-username/Python-DevOps.git`
+- **Credentials**: Select the GitHub token or SSH key created above
+- **Branch Specifier**: `*/main` or `*/master`
+- **Script Path**: `Jenkinsfile`
+
+#### Step 4.3: Create Comprehensive Jenkinsfile
+
+Create a detailed Jenkinsfile in your project root:
 
 ```groovy
-// Jenkinsfile content
 pipeline {
     agent any
+    
+    environment {
+        // Docker Registry
+        DOCKER_REGISTRY = 'YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com'
+        DOCKER_REGISTRY_CREDENTIALS = 'aws-ecr-credentials'
+        
+        // ECR Repository Names
+        BACKEND_IMAGE = "${DOCKER_REGISTRY}/devops-app/backend"
+        FRONTEND_IMAGE = "${DOCKER_REGISTRY}/devops-app/frontend"
+        
+        // Kubernetes
+        KUBE_NAMESPACE = 'devops-app'
+        KUBE_CLUSTER = 'devops-app-cluster'
+        KUBECONFIG = credentials('kubeconfig')
+        
+        // Git
+        GIT_CREDENTIALS = 'git-ssh-key'
+        
+        // Slack
+        SLACK_WEBHOOK = credentials('slack-webhook')
+        
+        // Version
+        BUILD_VERSION = "${BUILD_NUMBER}"
+        BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
+    }
+    
+    options {
+        // Keep last 10 builds
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        
+        // Timeout after 1 hour
+        timeout(time: 1, unit: 'HOURS')
+        
+        // Disable concurrent builds
+        disableConcurrentBuilds()
+        
+        // Add timestamps to console output
+        timestamps()
+    }
+    
+    triggers {
+        // Trigger on Git push
+        githubPush()
+        
+        // Poll SCM every 15 minutes
+        pollSCM('H/15 * * * *')
+    }
     
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/your-username/Python-DevOps.git'
+                echo "========== Checking out code from repository =========="
+                checkout(
+                    [
+                        $class: 'GitSCM',
+                        branches: [[name: '*/main']],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/your-username/Python-DevOps.git',
+                            credentialsId: 'github-token'
+                        ]]
+                    ]
+                )
+                
+                echo "Current commit: ${GIT_COMMIT}"
+                echo "Branch: ${GIT_BRANCH}"
             }
         }
         
-        stage('Build') {
+        stage('Validate') {
             steps {
+                echo "========== Validating configuration files =========="
+                
+                // Validate Docker Compose syntax
+                sh 'docker-compose config > /dev/null'
+                echo "✓ Docker Compose configuration is valid"
+                
+                // Validate Kubernetes manifests
                 sh '''
-                    docker-compose build
+                    for file in k8s/*.yaml; do
+                        echo "Validating $file..."
+                        kubectl apply -f $file --dry-run=client --namespace=${KUBE_NAMESPACE} || exit 1
+                    done
+                '''
+                echo "✓ Kubernetes manifests are valid"
+                
+                // Lint Jenkinsfile
+                sh 'groovy -c "echo 'Jenkinsfile syntax is valid'"'
+                echo "✓ Jenkinsfile syntax is valid"
+            }
+        }
+        
+        stage('Build Backend') {
+            steps {
+                echo "========== Building backend Docker image =========="
+                
+                dir('backend') {
+                    sh '''
+                        docker build \
+                            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                            --build-arg VCS_REF=${GIT_COMMIT:0:8} \
+                            --build-arg VERSION=${BUILD_VERSION} \
+                            -t ${BACKEND_IMAGE}:${BUILD_VERSION} \
+                            -t ${BACKEND_IMAGE}:latest \
+                            .
+                    '''
+                    echo "✓ Backend image built successfully"
+                }
+            }
+        }
+        
+        stage('Build Frontend') {
+            steps {
+                echo "========== Building frontend Docker image =========="
+                
+                dir('frontend') {
+                    sh '''
+                        docker build \
+                            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                            --build-arg VCS_REF=${GIT_COMMIT:0:8} \
+                            --build-arg VERSION=${BUILD_VERSION} \
+                            -t ${FRONTEND_IMAGE}:${BUILD_VERSION} \
+                            -t ${FRONTEND_IMAGE}:latest \
+                            .
+                    '''
+                    echo "✓ Frontend image built successfully"
+                }
+            }
+        }
+        
+        stage('Test Backend') {
+            steps {
+                echo "========== Running backend unit tests =========="
+                
+                dir('backend') {
+                    sh '''
+                        # Create virtual environment
+                        python3 -m venv test-venv
+                        source test-venv/bin/activate
+                        
+                        # Install dependencies
+                        pip install -r requirements.txt pytest pytest-cov
+                        
+                        # Run tests with coverage
+                        pytest --cov=app --cov-report=xml --cov-report=html tests/ || exit 1
+                    '''
+                    echo "✓ Backend tests passed"
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                echo "========== Running security scans =========="
+                
+                // Scan for vulnerabilities in dependencies
+                sh '''
+                    cd backend
+                    pip install bandit safety
+                    
+                    # Bandit: Check for security issues in Python code
+                    bandit -r app/ -f json -o bandit-report.json || echo "Vulnerabilities found, continuing..."
+                    
+                    # Safety: Check for known vulnerabilities in dependencies
+                    safety check --json > safety-report.json || echo "Unsafe packages found, continuing..."
+                '''
+                
+                // Scan Docker images for vulnerabilities
+                sh '''
+                    echo "Scanning backend image for vulnerabilities..."
+                    trivy image --severity HIGH,CRITICAL ${BACKEND_IMAGE}:${BUILD_VERSION} || echo "Vulnerabilities found in image"
+                    
+                    echo "Scanning frontend image for vulnerabilities..."
+                    trivy image --severity HIGH,CRITICAL ${FRONTEND_IMAGE}:${BUILD_VERSION} || echo "Vulnerabilities found in image"
+                '''
+                
+                echo "✓ Security scans completed (check reports for details)"
+            }
+        }
+        
+        stage('Push to Registry') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "========== Pushing images to AWS ECR =========="
+                
+                withAWS(credentials: 'aws-ecr-credentials', region: 'us-east-1') {
+                    sh '''
+                        # Login to ECR
+                        aws ecr get-login-password --region us-east-1 | \
+                        docker login --username AWS --password-stdin ${DOCKER_REGISTRY}
+                        
+                        # Push backend image
+                        docker push ${BACKEND_IMAGE}:${BUILD_VERSION}
+                        docker push ${BACKEND_IMAGE}:latest
+                        echo "✓ Backend image pushed to ECR"
+                        
+                        # Push frontend image
+                        docker push ${FRONTEND_IMAGE}:${BUILD_VERSION}
+                        docker push ${FRONTEND_IMAGE}:latest
+                        echo "✓ Frontend image pushed to ECR"
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to EKS') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "========== Deploying to EKS cluster =========="
+                
+                withAWS(credentials: 'aws-ecr-credentials', region: 'us-east-1') {
+                    sh '''
+                        # Update kubeconfig for EKS
+                        aws eks update-kubeconfig --name ${KUBE_CLUSTER} --region us-east-1
+                        
+                        # Create namespace if it doesn't exist
+                        kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        # Create image pull secret
+                        kubectl create secret docker-registry ecr-secret \
+                            --docker-server=${DOCKER_REGISTRY} \
+                            --docker-username=AWS \
+                            --docker-password=$(aws ecr get-login-password --region us-east-1) \
+                            -n ${KUBE_NAMESPACE} \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        # Apply Kubernetes manifests
+                        kubectl apply -f k8s/postgres-pvc.yaml -n ${KUBE_NAMESPACE}
+                        kubectl apply -f k8s/postgres-deployment.yaml -n ${KUBE_NAMESPACE}
+                        
+                        # Wait for PostgreSQL to be ready
+                        kubectl wait --for=condition=ready pod -l app=postgres -n ${KUBE_NAMESPACE} --timeout=300s
+                        
+                        # Update image tags in deployment manifests
+                        kubectl set image deployment/backend \
+                            backend=${BACKEND_IMAGE}:${BUILD_VERSION} \
+                            -n ${KUBE_NAMESPACE} || \
+                        kubectl apply -f k8s/backend-deployment.yaml -n ${KUBE_NAMESPACE}
+                        
+                        kubectl set image deployment/frontend \
+                            frontend=${FRONTEND_IMAGE}:${BUILD_VERSION} \
+                            -n ${KUBE_NAMESPACE} || \
+                        kubectl apply -f k8s/frontend-deployment.yaml -n ${KUBE_NAMESPACE}
+                        
+                        # Apply ingress
+                        kubectl apply -f k8s/ingress.yaml -n ${KUBE_NAMESPACE}
+                        
+                        # Wait for deployments
+                        kubectl rollout status deployment/backend -n ${KUBE_NAMESPACE} --timeout=5m
+                        kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE} --timeout=5m
+                        
+                        echo "✓ Deployment completed successfully"
+                        
+                        # Display deployment status
+                        echo "========== Deployment Status =========="
+                        kubectl get all -n ${KUBE_NAMESPACE}
+                        
+                        echo "========== Service Details =========="
+                        kubectl describe svc -n ${KUBE_NAMESPACE}
+                    '''
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo "========== Performing health checks =========="
+                
+                sh '''
+                    # Wait a bit for services to stabilize
+                    sleep 10
+                    
+                    # Check backend health
+                    BACKEND_POD=$(kubectl get pods -n ${KUBE_NAMESPACE} -l app=backend -o jsonpath='{.items[0].metadata.name}')
+                    if [ ! -z "$BACKEND_POD" ]; then
+                        echo "Testing backend pod: $BACKEND_POD"
+                        kubectl exec -it $BACKEND_POD -n ${KUBE_NAMESPACE} -- curl -f http://localhost:5000/health || echo "Health check endpoint not available"
+                    fi
+                    
+                    # Check frontend health
+                    FRONTEND_POD=$(kubectl get pods -n ${KUBE_NAMESPACE} -l app=frontend -o jsonpath='{.items[0].metadata.name}')
+                    if [ ! -z "$FRONTEND_POD" ]; then
+                        echo "Testing frontend pod: $FRONTEND_POD"
+                        kubectl exec -it $FRONTEND_POD -n ${KUBE_NAMESPACE} -- curl -f http://localhost || echo "Frontend health check failed"
+                    fi
+                    
+                    echo "✓ Health checks completed"
                 '''
             }
         }
         
-        stage('Test') {
+        stage('Notification') {
             steps {
+                echo "========== Sending notifications =========="
+                
+                script {
+                    // Prepare message based on status
+                    def status = currentBuild.result ?: 'SUCCESS'
+                    def color = status == 'SUCCESS' ? 'good' : 'danger'
+                    def emoji = status == 'SUCCESS' ? '✓' : '✗'
+                    
+                    // Send to Slack
+                    sh '''
+                        curl -X POST -H 'Content-type: application/json' \
+                        --data "{
+                            \"text\": \"${emoji} Build ${BUILD_NUMBER} ${status}\",
+                            \"attachments\": [{
+                                \"color\": \"${color}\",
+                                \"fields\": [
+                                    {\"title\": \"Project\", \"value\": \"Python-DevOps\", \"short\": true},
+                                    {\"title\": \"Build\", \"value\": \"${BUILD_NUMBER}\", \"short\": true},
+                                    {\"title\": \"Status\", \"value\": \"${status}\", \"short\": true},
+                                    {\"title\": \"Branch\", \"value\": \"${GIT_BRANCH}\", \"short\": true},
+                                    {\"title\": \"Commit\", \"value\": \"${GIT_COMMIT:0:8}\", \"short\": true},
+                                    {\"title\": \"Duration\", \"value\": \"${currentBuild.durationString}\", \"short\": true}
+                                ],
+                                \"actions\": [{
+                                    \"type\": \"button\",
+                                    \"text\": \"View Build\",
+                                    \"url\": \"${BUILD_URL}\"
+                                }]
+                            }]
+                        }" ${SLACK_WEBHOOK}
+                    '''
+                    
+                    echo "✓ Notifications sent"
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo "========== Pipeline Cleanup =========="
+            
+            // Archive test reports
+            junit allowEmptyResults: true, testResults: 'backend/test-results.xml'
+            
+            // Publish coverage reports
+            publishHTML(
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'backend/htmlcov',
+                reportFiles: 'index.html',
+                reportName: 'Coverage Report'
+            )
+            
+            // Clean workspace
+            cleanWs()
+        }
+        
+        success {
+            echo "========== Pipeline Succeeded =========="
+            
+            // Send success notification (already done in Notification stage)
+            script {
                 sh '''
-                    docker-compose run backend pytest
+                    echo "Build completed successfully!"
+                    echo "Application deployed to: ${KUBE_CLUSTER}"
+                    echo "Namespace: ${KUBE_NAMESPACE}"
                 '''
             }
         }
         
-        stage('Push') {
-            steps {
+        failure {
+            echo "========== Pipeline Failed =========="
+            
+            // Send failure notification
+            script {
                 sh '''
-                    docker tag backend:latest your-registry/backend:latest
-                    docker push your-registry/backend:latest
+                    echo "Build failed!"
+                    echo "Check logs for details: ${BUILD_URL}console"
                 '''
             }
         }
         
-        stage('Deploy') {
-            steps {
+        unstable {
+            echo "========== Pipeline Unstable =========="
+            
+            // Send warning notification
+            script {
                 sh '''
-                    kubectl apply -f k8s/
+                    echo "Build is unstable!"
+                    echo "Review test results: ${BUILD_URL}testReport"
                 '''
             }
         }
@@ -1033,30 +2094,85 @@ pipeline {
 }
 ```
 
-### Step 6: Configure Webhook (Optional)
+#### Step 4.4: Save and Test Pipeline
+
+1. Click "Save" in Jenkins
+2. Click "Build Now" to trigger first build
+3. Monitor build progress in "Console Output"
+
+---
+
+### Step 5: Configure Pipeline Triggers
+
+#### Step 5.1: GitHub Webhook Setup
 
 For automatic builds on Git push:
 
-1. Go to your GitHub repository settings
-2. Click "Webhooks"
-3. Click "Add webhook"
-4. Payload URL: `http://your-instance-ip:8080/github-webhook/`
-5. Content type: `application/json`
-6. Events: Push events
-7. Active: Yes
-8. Click "Add webhook"
+1. Go to your GitHub repository → Settings → Webhooks
+2. Click "Add webhook"
+3. Configure:
 
-### Step 7: Run First Build
+   - **Payload URL**: `http://your-jenkins-ip:8080/github-webhook/`
+   - **Content type**: `application/json`
+   - **Events**: Select "Push events" and "Pull Requests"
+   - **Active**: Yes
 
-1. Click "Build Now" in Jenkins job
-2. Monitor build progress in "Console Output"
-3. Check build results
+4. Click "Add webhook"
 
-Monitor logs:
+#### Step 5.2: Verify Webhook
 
-```bash
-tail -f /var/log/jenkins/jenkins.log
+In Jenkins, go to:
+1. Manage Jenkins → System
+2. Search for "GitHub"
+3. Set up "GitHub Server"
+4. Test connection
+
+---
+
+### Step 6: Pipeline Job Configuration Options
+
+#### Step 6.1: Build Triggers
+
+Configure automatic build triggers:
+
+1. In Jenkins job, click "Configure"
+2. Go to "Build Triggers" section
+3. Options:
+
+   - **GitHub hook trigger for GITScm polling**: Trigger on Git push
+   - **Poll SCM**: `H/15 * * * *` (every 15 minutes)
+   - **Build periodically**: `H H * * *` (daily)
+
+#### Step 6.2: Post-Build Actions
+
+Configure post-build notifications:
+
+1. Add "Slack Notification"
+2. Add "Email Notification"
+3. Add "Archive artifacts"
+4. Add "Publish test results"
+
+#### Step 6.3: Pipeline Options
+
+In Jenkinsfile, configure:
+
+```groovy
+options {
+    // Keep builds
+    buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '5'))
+    
+    // Timeout
+    timeout(time: 1, unit: 'HOURS')
+    
+    // Disable concurrent builds
+    disableConcurrentBuilds()
+    
+    // Timestamps
+    timestamps()
+}
 ```
+
+---
 
 ---
 

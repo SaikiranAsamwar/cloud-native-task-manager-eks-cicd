@@ -252,8 +252,8 @@ sudo yum install -y git
 Configure Git (replace with your information):
 
 ```bash
-git config --global user.name "Your Name"
-git config --global user.email "your.email@example.com"
+git config --global user.name "SaikiranAsamwar"
+git config --global user.email "saikiranasamwar@gmail.com"
 ```
 
 Verify Git installation:

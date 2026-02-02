@@ -1,2766 +1,1918 @@
-# Complete Deployment Guide for Python DevOps Project on Amazon Linux 2023
+# Compressorr - Media Conversion & Compression Platform
 
-This guide provides a comprehensive, step-by-step walkthrough for deploying the entire Python DevOps application stack on Amazon Linux 2023.
+A full-stack Node.js application for image and PDF conversion, compression, and restoration. Built with Express, MongoDB, and containerized for production deployment on AWS EKS.
+
+## 📋 Table of Contents
+
+### SECTION A: INSTALLATION & CONFIGURATION
+- [Architecture Overview](#architecture-overview)
+- [Prerequisites](#prerequisites)
+- [Step 1: EC2 Instance Setup](#step-1-ec2-instance-setup)
+- [Step 2: Install Docker](#step-2-install-docker)
+- [Step 3: Install Docker Compose](#step-3-install-docker-compose)
+- [Step 4: Install Node.js](#step-4-install-nodejs)
+- [Step 5: Install AWS CLI](#step-5-install-aws-cli)
+- [Step 6: Install kubectl](#step-6-install-kubectl)
+- [Step 7: Install eksctl](#step-7-install-eksctl)
+- [Step 8: Install Java](#step-8-install-java)
+- [Step 9: Install PostgreSQL](#step-9-install-postgresql-for-sonarqube)
+- [Step 10: Install & Configure Jenkins](#step-10-install--configure-jenkins)
+- [Step 11: Install & Configure SonarQube](#step-11-install--configure-sonarqube)
+- [Step 12: Install & Configure Prometheus](#step-12-install--configure-prometheus)
+- [Step 13: Install & Configure Grafana](#step-13-install--configure-grafana)
+
+### SECTION B: DEPLOYMENT
+- [Step 14: Clone & Configure Application](#step-14-clone--configure-application)
+- [Step 15: Docker Deployment](#step-15-docker-deployment)
+- [Step 16: Kubernetes (EKS) Deployment](#step-16-kubernetes-eks-deployment)
+- [Step 17: Setup CI/CD Pipeline](#step-17-setup-cicd-pipeline)
+- [Step 18: Verify Monitoring](#step-18-verify-monitoring)
+
+### SECTION C: REFERENCE
+- [Environment Variables](#environment-variables)
+- [Troubleshooting](#troubleshooting)
+- [Quick Reference Commands](#quick-reference-commands)
+- [Project Structure](#project-structure)
 
 ---
 
-## Table of Contents
+## Architecture Overview
 
-1. [Prerequisites](#prerequisites)
-2. [System Setup and Configuration](#system-setup-and-configuration)
-3. [Installing Required Tools](#installing-required-tools)
-4. [Backend Application Setup](#backend-application-setup)
-5. [Frontend Application Setup](#frontend-application-setup)
-6. [Database Setup](#database-setup)
-7. [Docker and Docker Compose Deployment](#docker-and-docker-compose-deployment)
-8. [Kubernetes Deployment](#kubernetes-deployment)
-9. [Jenkins CI/CD Setup](#jenkins-cicd-setup)
-10. [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
-11. [Troubleshooting](#troubleshooting)
-12. [Verification and Testing](#verification-and-testing)
+```
+├── Backend (Node.js + Express) - Port 5000
+├── Frontend (HTML/CSS/JS + Nginx) - Port 80
+├── Database (MongoDB) - Port 27017
+├── Container Registry (DockerHub)
+├── Orchestration (Amazon EKS)
+├── CI/CD (Jenkins)
+├── Code Quality (SonarQube)
+└── Monitoring (Prometheus + Grafana)
+```
 
 ---
 
 ## Prerequisites
 
-### Hardware Requirements
-- **RAM**: Minimum 4GB (8GB recommended for smooth operation)
-- **CPU**: 2 vCPUs minimum (4 vCPUs recommended)
-- **Disk Space**: 50GB minimum
-- **OS**: Amazon Linux 2023
+### AWS Requirements
+- AWS Account with IAM user
+- Access to EC2, EKS, IAM, VPC services
+- SSH key pair for EC2 access
 
-### Network Requirements
-- Internet connectivity for downloading packages and dependencies
-- Open ports: 80 (HTTP), 443 (HTTPS), 5432 (PostgreSQL), 8080 (Jenkins), 9090 (Prometheus), 3000 (Grafana)
-
-### AWS EC2 Instance Setup
-1. Launch an EC2 instance with Amazon Linux 2023 AMI
-2. Choose appropriate instance type (t3.medium or larger recommended)
-3. Allocate 50GB EBS volume
-4. Create/use security group with rules allowing ports mentioned above
-5. Connect to instance via SSH
+### Local Requirements
+- Git installed
+- SSH client
+- DockerHub account
 
 ---
 
-## System Setup and Configuration
-
-### Step 1: Connect to Your EC2 Instance
-
-```bash
-ssh -i your-key.pem ec2-user@your-instance-ip
-```
-
-Replace `your-key.pem` with your actual key file and `your-instance-ip` with your instance IP address.
-
-### Step 2: Update System Packages
-
-After connecting, update all system packages to ensure you have the latest patches and security updates:
-
-```bash
-sudo yum update -y
-```
-
-This command will:
-- Download package lists from configured repositories
-- Check for updates for all installed packages
-- Install all available updates
-- The `-y` flag automatically confirms the operation
-
-### Step 3: Install Essential Build Tools
-
-Install the necessary build tools that will be needed for compiling Python packages and other dependencies:
-
-```bash
-sudo yum groupinstall "Development Tools" -y
-```
-
-Additionally, install some individual essential packages:
-
-```bash
-sudo yum install -y \
-  gcc \
-  gcc-c++ \
-  make \
-  kernel-devel \
-  openssl-devel \
-  bzip2-devel \
-  libffi-devel \
-  zlib-devel \
-  wget \
-  curl \
-  git \
-  vim
-```
-
-### Step 4: Configure System Limits (For Production)
-
-Edit the system limits configuration file:
-
-```bash
-sudo nano /etc/security/limits.conf
-```
-
-Add the following lines at the end of the file:
-
-```
-* soft nofile 65536
-* hard nofile 65536
-* soft nproc 65536
-* hard nproc 65536
-```
-
-Save the file (Ctrl+X, then Y, then Enter).
+# SECTION A: INSTALLATION & CONFIGURATION
 
 ---
 
-## Installing Required Tools
+## Step 1: EC2 Instance Setup
 
-### Step 1: Install Python 3.11
+### 1.1 Launch EC2 Instance
 
-Amazon Linux 2023 comes with Python 3, but let's ensure we have the latest stable version:
+**Instance Configuration:**
+- **AMI:** Amazon Linux 2023
+- **Instance Type:** t3.large (minimum for running Jenkins + SonarQube)
+- **Storage:** 50 GB gp3
+- **Security Group Ports:**
+  - 22 (SSH)
+  - 80 (Frontend)
+  - 5000 (Backend)
+  - 8080 (Jenkins)
+  - 9000 (SonarQube)
+  - 9090 (Prometheus)
+  - 3000 (Grafana)
+
+### 1.2 Connect to EC2
 
 ```bash
-sudo yum install -y python3.11 python3.11-devel
+# Set permissions for your key
+sudo chmod 400 your-key.pem
+
+# Connect via SSH
+sudo ssh -i your-key.pem ec2-user@your-ec2-public-ip
 ```
 
-Create a symbolic link to make Python 3.11 the default:
+### 1.3 Initial System Update
 
 ```bash
-sudo alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+# Update all packages
+sudo dnf update -y
+
+# Install basic utilities
+sudo dnf install -y git wget curl tar unzip vim
 ```
 
-Verify Python installation:
+---
+
+## Step 2: Install Docker
 
 ```bash
-python3 --version
-pip3 --version
-```
+# Install Docker
+sudo dnf install -y docker
 
-Both should return version information.
-
-### Step 2: Install pip and Virtual Environment Tools
-
-pip should come with Python, but let's ensure it's updated:
-
-```bash
-sudo python3 -m pip install --upgrade pip
-```
-
-Install virtualenv for creating isolated Python environments:
-
-```bash
-sudo python3 -m pip install virtualenv
-```
-
-Verify the installation:
-
-```bash
-virtualenv --version
-```
-
-### Step 3: Install Docker
-
-Docker is essential for containerizing our application.
-
-Add Docker repository:
-
-```bash
-sudo yum install -y amazon-linux-extras
-```
-
-Install Docker:
-
-```bash
-sudo yum install -y docker
-```
-
-Start and enable Docker service:
-
-```bash
+# Start and enable Docker service
 sudo systemctl start docker
 sudo systemctl enable docker
+
+# Note: Running Docker with sudo is required in this setup
+# All Docker commands will use sudo
+
+# Verify installation
+sudo docker --version
+sudo docker ps
 ```
 
-All Docker commands will be run with sudo since we're using root user.
+---
 
-Verify Docker installation:
-
-```bash
-docker --version
-docker run hello-world
-```
-
-### Step 4: Install Docker Compose
-
-Docker Compose allows us to define and run multi-container Docker applications.
-
-Download the latest Docker Compose binary:
+## Step 3: Install Docker Compose
 
 ```bash
+# Download Docker Compose
 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-```
 
-Make it executable:
-
-```bash
+# Make it executable
 sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installation
+sudo docker-compose --version
 ```
 
-Verify installation:
+---
+
+## Step 4: Install Node.js
 
 ```bash
-docker-compose --version
+# Install Node.js 18
+sudo dnf install -y nodejs
+
+# Verify installation
+sudo node --version
+sudo npm --version
+
+# Install global packages
+sudo npm install -g pm2
 ```
 
-### Step 5: Install Git
+---
 
-Git is likely already installed, but ensure it's the latest version:
+## Step 5: Install AWS CLI
 
 ```bash
-sudo yum install -y git
+# Download AWS CLI
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+
+# Unzip
+unzip awscliv2.zip
+
+# Install
+sudo ./aws/install
+
+# Verify
+aws --version
+
+# Configure AWS credentials
+aws configure
+# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
 ```
 
-Configure Git (replace with your information):
+---
+
+## Step 6: Install kubectl
 
 ```bash
-git config --global user.name "SaikiranAsamwar"
-git config --global user.email "saikiranasamwar@gmail.com"
-```
-
-Verify Git installation:
-
-```bash
-git --version
-```
-
-### Step 6: Install PostgreSQL Client
-
-Although the database runs in a container, installing the client tools helps with debugging:
-
-```bash
-sudo yum install -y postgresql
-```
-
-Verify installation:
-
-```bash
-psql --version
-```
-
-### Step 7: Install kubectl (For Kubernetes)
-
-Download kubectl binary:
-
-```bash
+# Download kubectl
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-```
 
-Make it executable and move to PATH:
+# Make executable
+sudo chmod +x kubectl
 
-```bash
-chmod +x kubectl
+# Move to PATH
 sudo mv kubectl /usr/local/bin/
-```
 
-Verify installation:
-
-```bash
+# Verify
 kubectl version --client
 ```
 
-### Step 8: Install Minikube or Kind (For Local Kubernetes Testing)
-
-For testing Kubernetes manifests locally, install Minikube:
-
-```bash
-curl -minikube https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
-chmod +x minikube
-sudo mv minikube /usr/local/bin/
-```
-
-Verify installation:
-
-```bash
-minikube version
-```
-
-### Step 9: Install Java (For Jenkins)
-
-Jenkins requires Java to run:
-
-```bash
-sudo yum install -y java-17-amazon-corretto-jdk
-```
-
-Verify Java installation:
-
-```bash
-java -version
-javac -version
-```
-
-### Step 10: Install Jenkins
-
-Add the Jenkins repository:
-
-```bash
-sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-```
-
-Import Jenkins GPG key:
-
-```bash
-sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
-```
-
-Install Jenkins:
-
-```bash
-sudo yum install -y jenkins
-```
-
-Start and enable Jenkins service:
-
-```bash
-sudo systemctl start jenkins
-sudo systemctl enable jenkins
-```
-
-Verify Jenkins is running:
-
-```bash
-sudo systemctl status jenkins
-```
-
 ---
 
-## Backend Application Setup
-
-### Step 1: Clone the Repository
-
-Create a directory for the project:
+## Step 7: Install eksctl
 
 ```bash
-sudo mkdir -p /opt/projects
-sudo cd /opt/projects
-```
+# Download eksctl
+curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz"
 
-Clone your repository (replace with your actual repository URL):
+# Extract
+tar -xzf eksctl_Linux_amd64.tar.gz
 
-```bash
-sudo git clone https://github.com/your-username/Python-DevOps.git
-sudo cd Python-DevOps
-```
+# Move to PATH
+sudo mv eksctl /usr/local/bin/
 
-If using local code, copy it to the directory instead.
-
-### Step 2: Navigate to Backend
-
-Navigate to the backend directory:
-
-```bash
-sudo cd /opt/projects/Python-DevOps/backend
-```
-
-All installation commands will use sudo since we're running as root user.
-
-### Step 3: Install Python Dependencies
-
-Ensure you're in the backend directory.
-
-Upgrade pip, setuptools, and wheel:
-
-```bash
-sudo python3 -m pip install --upgrade pip setuptools wheel
-```
-
-Install dependencies from requirements.txt:
-
-```bash
-sudo python3 -m pip install -r requirements.txt
-```
-
-This command reads the requirements.txt file and installs all specified Python packages with their specified versions.
-
-To verify all packages are installed:
-
-```bash
-sudo pip3 list
-```
-
-### Step 4: Review Backend Configuration
-
-Examine the configuration file:
-
-```bash
-cat config.py
-```
-
-Key configuration parameters typically include:
-- `SQLALCHEMY_DATABASE_URI`: Database connection string
-- `SECRET_KEY`: Application secret key
-- `DEBUG`: Debug mode flag
-- `FLASK_ENV`: Environment type (development/production)
-
-### Step 5: Examine Application Structure
-
-Review the main application files:
-
-```bash
-cat run.py          # Main entry point
-cat app/__init__.py # Application factory
-cat app/models.py   # Database models
-cat app/routes.py   # API routes
-cat utils.py        # Utility functions
-```
-
-### Step 6: Test Backend Locally (Optional)
-
-To test the backend without Docker:
-
-```bash
-sudo python3 run.py
-```
-
-This should start the Flask development server. By default, it runs on http://localhost:5000
-
-To stop the server: Press Ctrl+C
-
-Verify it's running:
-
-```bash
-curl http://localhost:5000
-```
-
----
-
-## Frontend Application Setup
-
-### Step 1: Check Node.js Installation (Optional)
-
-If your frontend uses Node.js/npm:
-
-```bash
-curl -sL https://rpm.nodesource.com/setup_18.x | sudo bash -
-sudo yum install -y nodejs
-```
-
-Verify installation:
-
-```bash
-node --version
-npm --version
-```
-
-### Step 2: Navigate to Frontend Directory
-
-```bash
-cd ../frontend
-```
-
-### Step 3: Review Frontend Files
-
-Check the structure of your frontend:
-
-```bash
-ls -la
-cat nginx.conf
-```
-
-The nginx.conf file contains web server configuration for serving static files.
-
-### Step 4: Build Frontend (If Required)
-
-If there's a build process (check for package.json):
-
-```bash
-npm install
-npm run build
-```
-
-If no build process, frontend files are already ready to serve.
-
----
-
-## Database Setup
-
-### Step 1: Create PostgreSQL Data Directory
-
-Create a directory for PostgreSQL data persistence:
-
-```bash
-sudo mkdir -p /opt/data/postgres
-```
-
-### Step 2: Review Database Configuration
-
-Check the Kubernetes PostgreSQL manifest:
-
-```bash
-cat ../k8s/postgres-deployment.yaml
-```
-
-Note the:
-- Database name
-- Username
-- Password requirements
-- Storage configuration
-
-### Step 3: Environment Variables Setup
-
-Create a .env file for sensitive information:
-
-```bash
-sudo bash -c 'cat > /opt/projects/Python-DevOps/.env << EOF
-# Database Configuration
-DB_NAME=appdb
-DB_USER=appuser
-DB_PASSWORD=your-secure-password-here
-DB_HOST=localhost
-DB_PORT=5432
-
-# Flask Configuration
-FLASK_ENV=production
-SECRET_KEY=your-secret-key-here
-
-# Other configurations
-LOG_LEVEL=INFO
-EOF'
-```
-
-Secure the .env file:
-
-```bash
-sudo chmod 600 /opt/projects/Python-DevOps/.env
-```
-
-### Step 4: Create Database Initialization Script
-
-Create a script to initialize the database:
-
-```bash
-cat > init-db.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "Waiting for PostgreSQL to be ready..."
-for i in {1..30}; do
-  if psql -h $DB_HOST -U $DB_USER -d postgres -c "SELECT 1" > /dev/null 2>&1; then
-    echo "PostgreSQL is ready!"
-    break
-  fi
-  echo "Attempt $i failed. Retrying..."
-  sleep 2
-done
-
-echo "Creating database..."
-psql -h $DB_HOST -U $DB_USER -d postgres -c "CREATE DATABASE $DB_NAME;" || echo "Database already exists"
-
-echo "Running migrations..."
-cd backend
-source venv/bin/activate
-python run.py
-
-echo "Database initialization complete!"
-EOF
-
-chmod +x init-db.sh
-```
-
----
-
-## Docker and Docker Compose Deployment
-
-### Step 1: Review Docker Compose Configuration
-
-```bash
-sudo cat docker-compose.yml
-```
-
-This file defines all services:
-- Backend service
-- Frontend service
-- PostgreSQL service
-- Any other services
-
-### Step 2: Build Docker Images
-
-Ensure you're in the project root directory:
-
-```bash
-sudo cd /opt/projects/Python-DevOps
-```
-
-Build all images defined in docker-compose.yml:
-
-```bash
-sudo docker-compose build
-```
-
-This process will:
-- Read the docker-compose.yml file
-- Build each service's image using its Dockerfile
-- Tag images appropriately
-- Store images in local Docker registry
-
-Monitor the build output for any errors. Typical output should show:
-```
-Building backend
-Building frontend
-...
-Successfully built [image-id]
-```
-
-### Step 3: Start Services with Docker Compose
-
-Start all services in the background:
-
-```bash
-sudo docker-compose up -d
-```
-
-The `-d` flag runs services in detached mode (background).
-
-### Step 4: Verify Services are Running
-
-Check the status of all services:
-
-```bash
-sudo docker-compose ps
-```
-
-Output should show all services with status "Up X seconds/minutes".
-
-### Step 5: Check Service Logs
-
-View logs from all services:
-
-```bash
-sudo docker-compose logs -f
-```
-
-View logs from a specific service:
-
-```bash
-sudo docker-compose logs -f backend
-sudo docker-compose logs -f frontend
-sudo docker-compose logs -f postgres
-```
-
-The `-f` flag follows log output (like `tail -f`).
-
-### Step 6: Test Backend Service
-
-```bash
-sudo docker-compose exec backend curl http://localhost:5000/
-```
-
-Should return a response from your Flask application.
-
-### Step 7: Test Frontend Service
-
-Open a browser and navigate to:
-
-```
-http://your-instance-ip
-```
-
-Should display your frontend application.
-
-### Step 8: Test Database Connection
-
-Verify PostgreSQL is accessible:
-
-```bash
-sudo docker-compose exec postgres psql -U appuser -d appdb -c "SELECT version();"
-```
-
-This command executes a SQL query in the PostgreSQL container.
-
-### Step 9: Stop Services
-
-When needed, stop all services:
-
-```bash
-sudo docker-compose down
-```
-
-Remove volumes (data) as well:
-
-```bash
-sudo docker-compose down -v
-```
-
----
-
-## Kubernetes Deployment
-
-### Option A: Using Amazon EKS (Recommended for Production)
-
-#### Step 1A: Install AWS CLI
-
-Download and install AWS CLI v2:
-
-```bash
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
-```
-
-Verify installation:
-
-```bash
-aws --version
-```
-
-#### Step 2A: Configure AWS Credentials
-
-Configure AWS CLI with your credentials:
-
-```bash
-aws configure
-```
-
-When prompted, enter:
-- AWS Access Key ID: (your access key)
-- AWS Secret Access Key: (your secret key)
-- Default region name: us-east-1 (or your preferred region)
-- Default output format: json
-
-Verify configuration:
-
-```bash
-aws sts get-caller-identity
-```
-
-Should display your AWS account information.
-
-#### Step 3A: Install eksctl
-
-Install the EKS cluster management tool:
-
-```bash
-curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-sudo mv /tmp/eksctl /usr/local/bin
-```
-
-Verify installation:
-
-```bash
+# Verify
 eksctl version
 ```
 
-#### Step 4A: Create EKS Cluster
+---
 
-Create a new EKS cluster:
-
-```bash
-eksctl create cluster \
-  --name devops-app-cluster \
-  --version 1.27 \
-  --region us-east-1 \
-  --nodegroup-name devops-nodes \
-  --node-type t3.medium \
-  --nodes 2 \
-  --nodes-min 2 \
-  --nodes-max 4
-```
-
-This command will:
-- Create an EKS cluster named `devops-app-cluster`
-- Use Kubernetes version 1.27
-- In us-east-1 region
-- Create a node group with minimum 2 and maximum 4 t3.medium instances
-- Configure IAM roles and VPC automatically
-
-This process takes 15-20 minutes. Wait for completion.
-
-Verify cluster creation:
+## Step 8: Install Java
 
 ```bash
-aws eks describe-cluster --name devops-app-cluster --region us-east-1
-eksctl get clusters --region us-east-1
+# Install Amazon Corretto 17 (OpenJDK)
+sudo dnf install -y java-17-amazon-corretto
+
+# Verify
+java -version
 ```
 
-#### Step 5A: Update kubeconfig
+---
 
-Configure kubectl to access the EKS cluster:
+## Step 9: Install PostgreSQL (for SonarQube)
 
 ```bash
-aws eks update-kubeconfig --name devops-app-cluster --region us-east-1
+# Install PostgreSQL 15
+sudo dnf install -y postgresql15-server
+
+# Initialize database
+sudo postgresql-setup --initdb
+
+# Start and enable PostgreSQL
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Check status
+sudo systemctl status postgresql
 ```
 
-Verify kubectl access:
+### Configure PostgreSQL for SonarQube
 
 ```bash
-kubectl get nodes
-kubectl get svc
+# Switch to postgres user
+sudo -u postgres psql
+
+# In PostgreSQL prompt, run these commands:
+CREATE USER sonarqube WITH ENCRYPTED PASSWORD 'sonar123';
+CREATE DATABASE sonarqube OWNER sonarqube;
+GRANT ALL PRIVILEGES ON DATABASE sonarqube TO sonarqube;
+\q
+
+# Edit PostgreSQL authentication config
+sudo nano /var/lib/pgsql/data/pg_hba.conf
 ```
 
-Should show the nodes in your EKS cluster.
+**Add this line before the other entries:**
+```
+host    sonarqube       sonarqube       127.0.0.1/32            md5
+```
 
-#### Step 6A: Configure RBAC and IAM
+**Restart PostgreSQL:**
+```bash
+sudo systemctl restart postgresql
 
-Create an IAM OIDC provider for the cluster:
+# Test connection
+psql -h localhost -U sonarqube -d sonarqube
+# Enter password: sonar123
+# Type \q to exit
+```
+
+---
+
+## Step 10: Install & Configure Jenkins
+
+### 10.1 Install Jenkins
 
 ```bash
-eksctl utils associate-iam-oidc-provider \
-  --cluster devops-app-cluster \
-  --region us-east-1 \
-  --approve
+# Add Jenkins repository
+sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+
+# Import Jenkins key
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+# Install Jenkins
+sudo dnf install -y jenkins
+
+# Start Jenkins
+sudo systemctl start jenkins
+sudo systemctl enable jenkins
+
+# Check status
+sudo systemctl status jenkins
 ```
 
-This enables IAM roles for service accounts (IRSA).
-
-#### Step 7A: Install AWS Load Balancer Controller
-
-The AWS Load Balancer Controller manages Ingress and Service resources.
-
-First, create an IAM policy:
+### 10.2 Configure Jenkins Initial Setup
 
 ```bash
-curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.4.7/docs/install/iam_policy.json
+# Get initial admin password
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 
-aws iam create-policy \
-  --policy-name AWSLoadBalancerControllerIAMPolicy \
-  --policy-document file://iam_policy.json
+# Access Jenkins UI
+# Open browser: http://your-ec2-public-ip:8080
 ```
 
-Create a service account:
+**Jenkins Initial Setup:**
+1. Paste the initial admin password
+2. Install suggested plugins
+3. Create admin user
+4. Configure Jenkins URL
+
+### 10.3 Install Required Jenkins Plugins
+
+**Required Plugins:**
+- Docker Pipeline
+- Kubernetes
+- Git
+- Pipeline
+- AWS Steps
+- SonarQube Scanner
+
+**Install via UI:**
+1. Dashboard → Manage Jenkins → Plugins
+2. Search and install each plugin
+3. Restart Jenkins
+
+### 10.4 Configure Jenkins Credentials
+
+**Add DockerHub Credentials:**
+1. Manage Jenkins → Credentials → System → Global credentials
+2. Add Credentials → Username with password
+3. ID: `dockerhub-credentials`
+4. Username: Your DockerHub username
+5. Password: Your DockerHub password
+
+**Add AWS Credentials:**
+1. Add Credentials → AWS Credentials
+2. ID: `aws-credentials`
+3. Access Key ID: Your AWS access key
+4. Secret Access Key: Your AWS secret key
+
+**Add GitHub Credentials (for Private Repositories):**
+1. Add Credentials → Username with password (or Personal Access Token)
+2. ID: `github-credentials`
+3. Username: Your GitHub username
+4. Password: GitHub Personal Access Token
+   - Generate token at: https://github.com/settings/tokens
+   - Required scopes: `repo`, `admin:repo_hook`
+
+**Add SonarQube Token:**
+1. First, generate token in SonarQube UI:
+   - Login to SonarQube: `http://your-ec2-public-ip:9000`
+   - My Account → Security → Generate Token
+   - Name: `jenkins`
+   - Copy the generated token
+2. Back in Jenkins → Add Credentials → Secret text
+3. ID: `sonarqube-token`
+4. Secret: Paste the SonarQube token
+
+### 10.5 Configure GitHub Webhook (for Auto-Trigger)
+
+**In GitHub Repository:**
+1. Go to your repository → Settings → Webhooks
+2. Click **Add webhook**
+3. Payload URL: `http://your-ec2-public-ip:8080/github-webhook/`
+4. Content type: `application/json`
+5. Select events: **Just the push event**
+6. Active: ✓ Check
+7. Click **Add webhook**
+
+**In Jenkins Job Configuration:**
+1. Open your pipeline job
+2. Build Triggers → Check **GitHub hook trigger for GITScm polling**
+3. Save
+
+### 10.6 Configure SonarQube Integration
+
+**In Jenkins:**
+1. Manage Jenkins → Configure System
+2. Scroll to **SonarQube servers**
+3. Click **Add SonarQube**
+4. Name: `SonarQube`
+5. Server URL: `http://localhost:9000`
+6. Server authentication token: Select `sonarqube-token` from dropdown
+7. Click **Save**
+
+---
+
+## Step 11: Install & Configure SonarQube
+
+### 11.1 Install SonarQube
 
 ```bash
-eksctl create iamserviceaccount \
-  --cluster devops-app-cluster \
-  --namespace kube-system \
-  --name aws-load-balancer-controller \
-  --attach-policy-arn arn:aws:iam::YOUR-AWS-ACCOUNT-ID:policy/AWSLoadBalancerControllerIAMPolicy \
-  --approve \
-  --region us-east-1
+# Download SonarQube
+cd /opt
+sudo wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-9.9.0.65466.zip
+
+# Unzip
+sudo unzip sonarqube-9.9.0.65466.zip
+sudo mv sonarqube-9.9.0.65466 sonarqube
+
+# Set ownership (using root)
+sudo chown -R root:root /opt/sonarqube
+
+# Set system limits
+sudo tee /etc/security/limits.d/99-sonarqube.conf << EOF
+root   -   nofile   65536
+root   -   nproc    4096
+EOF
+
+# Set kernel parameters
+sudo tee -a /etc/sysctl.conf << EOF
+vm.max_map_count=262144
+fs.file-max=65536
+EOF
+
+# Apply settings
+sudo sysctl -p
 ```
 
-Replace `YOUR-AWS-ACCOUNT-ID` with your actual AWS account ID. Get it from:
+### 11.2 Configure SonarQube Database Connection
 
 ```bash
-aws sts get-caller-identity --query Account --output text
+# Edit SonarQube configuration
+sudo nano /opt/sonarqube/conf/sonar.properties
 ```
 
-Add the EKS chart repository:
+**Uncomment and update these lines:**
+```properties
+sonar.jdbc.username=sonarqube
+sonar.jdbc.password=sonar123
+sonar.jdbc.url=jdbc:postgresql://localhost/sonarqube
+```
+
+**Save and exit (Ctrl+X, Y, Enter)**
+
+### 11.3 Configure SonarQube Service
 
 ```bash
-helm repo add eks https://aws.github.io/eks-charts
-helm repo update
+# Create systemd service
+sudo tee /etc/systemd/system/sonarqube.service << 'EOF'
+[Unit]
+Description=SonarQube service
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/opt/sonarqube/bin/linux-x86-64/sonar.sh start
+ExecStop=/opt/sonarqube/bin/linux-x86-64/sonar.sh stop
+User=root
+Group=root
+Restart=always
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start SonarQube
+sudo systemctl start sonarqube
+sudo systemctl enable sonarqube
+
+# Check status
+sudo systemctl status sonarqube
 ```
 
-Install the controller:
+### 11.4 Access SonarQube UI
 
 ```bash
-helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  -n kube-system \
-  --set clusterName=devops-app-cluster \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller
+# Wait for startup (1-2 minutes)
+# Access: http://your-ec2-public-ip:9000
+
+# Default credentials:
+# Username: admin
+# Password: admin
 ```
 
-Verify installation:
+### 11.5 Configure SonarQube Project
+
+**In SonarQube UI:**
+1. Create new project
+2. Project key: `compressorr`
+3. Generate token
+4. Copy token
+
+**Configure in Jenkins:**
+1. Manage Jenkins → Configure System
+2. SonarQube servers → Add SonarQube
+3. Name: `SonarQube`
+4. Server URL: `http://localhost:9000`
+5. Add token in credentials
+
+---
+
+## Step 12: Install & Configure Prometheus
+
+### 12.1 Download and Install Prometheus
 
 ```bash
-kubectl get deployment -n kube-system aws-load-balancer-controller
+# Create directories
+sudo mkdir -p /etc/prometheus
+sudo mkdir -p /var/lib/prometheus
+
+# Download Prometheus
+cd /tmp
+sudo wget https://github.com/prometheus/prometheus/releases/download/v2.48.0/prometheus-2.48.0.linux-amd64.tar.gz
+
+# Extract
+sudo tar -xvf prometheus-2.48.0.linux-amd64.tar.gz
+cd prometheus-2.48.0.linux-amd64
+
+# Copy binaries
+sudo cp prometheus /usr/local/bin/
+sudo cp promtool /usr/local/bin/
+
+# Set ownership
+sudo chown root:root /usr/local/bin/prometheus
+sudo chown root:root /usr/local/bin/promtool
+
+# Copy configuration files
+sudo cp -r consoles /etc/prometheus
+sudo cp -r console_libraries /etc/prometheus
+sudo cp prometheus.yml /etc/prometheus/prometheus.yml
+
+# Set ownership
+sudo chown -R root:root /etc/prometheus
+
+# Verify installation
+prometheus --version
 ```
 
-#### Step 8A: Set Up Container Registry (ECR)
-
-Create an ECR repository for your Docker images:
+### 12.2 Configure Prometheus
 
 ```bash
-aws ecr create-repository \
-  --repository-name devops-app/backend \
-  --region us-east-1
-
-aws ecr create-repository \
-  --repository-name devops-app/frontend \
-  --region us-east-1
+# Edit Prometheus configuration
+sudo nano /etc/prometheus/prometheus.yml
 ```
 
-Get the ECR login credentials:
-
-```bash
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com
-```
-
-Replace `YOUR-ACCOUNT-ID` with your AWS account ID.
-
-#### Step 9A: Create Kubernetes Namespace for EKS
-
-```bash
-kubectl create namespace devops-app
-```
-
-Create image pull secret for ECR:
-
-```bash
-kubectl create secret docker-registry ecr-secret \
-  --docker-server=YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com \
-  --docker-username=AWS \
-  --docker-password=$(aws ecr get-login-password --region us-east-1) \
-  -n devops-app
-```
-
-#### Step 10A: Update Kubernetes Manifests for EKS
-
-Modify your Kubernetes manifests to use ECR images. Update [backend-deployment.yaml](k8s/backend-deployment.yaml):
-
+**Replace with the following configuration:**
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: backend
-  namespace: devops-app
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: backend
-  template:
-    metadata:
-      labels:
-        app: backend
-    spec:
-      imagePullSecrets:
-      - name: ecr-secret
-      containers:
-      - name: backend
-        image: YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/backend:latest
-        ports:
-        - containerPort: 5000
-        env:
-        - name: DB_HOST
-          value: postgres.devops-app.svc.cluster.local
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: db-credentials
-              key: username
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: db-credentials
-              key: password
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Backend application metrics
+  - job_name: 'compressorr-backend'
+    static_configs:
+      - targets: ['localhost:5000']
+    metrics_path: '/metrics'
+
+  # Node Exporter (system metrics)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
 ```
 
-Similarly update [frontend-deployment.yaml](k8s/frontend-deployment.yaml):
+**Save and exit (Ctrl+X, Y, Enter)**
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: frontend
-  namespace: devops-app
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: frontend
-  template:
-    metadata:
-      labels:
-        app: frontend
-    spec:
-      imagePullSecrets:
-      - name: ecr-secret
-      containers:
-      - name: frontend
-        image: YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/frontend:latest
-        ports:
-        - containerPort: 80
+### 12.3 Validate Configuration
+
+```bash
+# Validate configuration file
+sudo /usr/local/bin/promtool check config /etc/prometheus/prometheus.yml
+
+# Fix permissions if needed
+sudo chown -R root:root /etc/prometheus
+sudo chown -R root:root /var/lib/prometheus
+sudo chmod 755 /etc/prometheus
+sudo chmod 755 /var/lib/prometheus
 ```
 
-#### Step 11A: Push Images to ECR
+### 12.4 Create Prometheus Service
 
-Build and push your Docker images:
+```bash
+# Create systemd service file
+sudo tee /etc/systemd/system/prometheus.service << 'EOF'
+[Unit]
+Description=Prometheus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=root
+Group=root
+Type=simple
+Restart=on-failure
+RestartSec=5s
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/var/lib/prometheus/ \
+  --web.console.templates=/etc/prometheus/consoles \
+  --web.console.libraries=/etc/prometheus/console_libraries \
+  --web.enable-lifecycle
+ExecReload=/bin/kill -HUP $MAINPID
+TimeoutStopSec=20s
+SendSIGKILL=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Start Prometheus
+sudo systemctl start prometheus
+sudo systemctl enable prometheus
+
+# Wait for service to start
+sleep 5
+
+# Check status
+sudo systemctl status prometheus
+
+# Check logs if failed
+sudo journalctl -u prometheus -n 50 --no-pager
+```
+
+### 12.5 Install Node Exporter (System Metrics)
+
+```bash
+# Download Node Exporter
+cd /tmp
+sudo wget https://github.com/prometheus/node_exporter/releases/download/v1.7.0/node_exporter-1.7.0.linux-amd64.tar.gz
+
+# Extract
+sudo tar -xvf node_exporter-1.7.0.linux-amd64.tar.gz
+
+# Copy binary
+sudo cp node_exporter-1.7.0.linux-amd64/node_exporter /usr/local/bin/
+
+# Set ownership
+sudo chown root:root /usr/local/bin/node_exporter
+
+# Create systemd service
+sudo tee /etc/systemd/system/node_exporter.service << 'EOF'
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+User=root
+Group=root
+Type=simple
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Start Node Exporter
+sudo systemctl daemon-reload
+sudo systemctl start node_exporter
+sudo systemctl enable node_exporter
+
+# Check status
+sudo systemctl status node_exporter
+```
+
+### 12.6 Verify Prometheus
+
+```bash
+# Check if Prometheus is listening
+sudo netstat -tlnp | grep 9090
+
+# Test Prometheus API
+curl http://localhost:9090/-/healthy
+
+# Access Prometheus UI
+# Open browser: http://your-ec2-public-ip:9090
+
+# Check targets
+# Go to Status → Targets to verify all targets are UP
+```
+
+### 12.7 Troubleshoot Prometheus Issues
+
+If Prometheus fails to start, use these commands:
+
+```bash
+# Check service status
+sudo systemctl status prometheus
+
+# View detailed logs
+sudo journalctl -u prometheus -n 100 --no-pager
+
+# Validate configuration
+sudo /usr/local/bin/promtool check config /etc/prometheus/prometheus.yml
+
+# Check permissions
+ls -la /etc/prometheus
+ls -la /var/lib/prometheus
+
+# Fix permissions
+sudo chown -R root:root /etc/prometheus
+sudo chown -R root:root /var/lib/prometheus
+
+# Check port availability
+sudo netstat -tlnp | grep 9090
+
+# If data is corrupted, clean and restart
+sudo systemctl stop prometheus
+sudo rm -rf /var/lib/prometheus/wal
+sudo mkdir -p /var/lib/prometheus
+sudo chown -R root:root /var/lib/prometheus
+sudo systemctl start prometheus
+```
+
+**Common Prometheus Errors and Solutions:**
+
+1. **"Permission denied" errors:**
+   ```bash
+   sudo chown -R root:root /etc/prometheus /var/lib/prometheus
+   ```
+
+2. **"Config file invalid" errors:**
+   ```bash
+   sudo /usr/local/bin/promtool check config /etc/prometheus/prometheus.yml
+   ```
+
+3. **Service fails to start:**
+   ```bash
+   sudo journalctl -u prometheus -n 50
+   # Check for specific error and fix accordingly
+   ```
+
+4. **Port already in use:**
+   ```bash
+   sudo lsof -i :9090  # Find what's using the port
+   sudo kill -9 <PID>  # Kill the process
+   ```
+
+5. **Corrupted WAL (Write-Ahead Log):**
+   ```bash
+   sudo systemctl stop prometheus
+   sudo rm -rf /var/lib/prometheus/wal
+   sudo systemctl start prometheus
+   ```
+
+---
+
+## Step 13: Install & Configure Grafana
+
+### 13.1 Install Grafana
+
+```bash
+# Add Grafana repository
+sudo tee /etc/yum.repos.d/grafana.repo << 'EOF'
+[grafana]
+name=grafana
+baseurl=https://rpm.grafana.com
+repo_gpgcheck=1
+enabled=1
+gpgcheck=1
+gpgkey=https://rpm.grafana.com/gpg.key
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+EOF
+
+# Install Grafana
+sudo dnf install -y grafana
+
+# Start Grafana
+sudo systemctl start grafana-server
+sudo systemctl enable grafana-server
+
+# Check status
+sudo systemctl status grafana-server
+```
+
+### 13.2 Access Grafana UI
+
+```bash
+# Access Grafana
+# Open browser: http://your-ec2-public-ip:3000
+
+# Default credentials:
+# Username: admin
+# Password: admin
+# (You'll be prompted to change password on first login)
+```
+
+### 13.3 Configure Prometheus Data Source in Grafana
+
+**In Grafana UI:**
+1. Login with admin/admin
+2. Change password when prompted
+3. Click **Add your first data source**
+4. Select **Prometheus**
+5. Configure:
+   - Name: `Prometheus`
+   - URL: `http://localhost:9090`
+   - Access: `Server (default)`
+6. Click **Save & Test**
+7. Should show "Data source is working"
+
+### 13.4 Import Pre-built Dashboards
+
+**Import Node Exporter Dashboard:**
+1. Click **+** → **Import**
+2. Enter dashboard ID: `1860`
+3. Click **Load**
+4. Select Prometheus data source
+5. Click **Import**
+
+**Import Custom Compressorr Dashboard (if available):**
+1. Click **+** → **Import**
+2. Upload `monitoring/grafana-dashboards/compressorr-dashboard.json` from your project
+3. Select Prometheus data source
+4. Click **Import**
+
+### 13.5 Create Simple Dashboard for Compressorr
+
+If custom dashboard doesn't exist, create one:
+
+1. Click **+** → **Dashboard** → **Add new panel**
+2. Query examples:
+   - HTTP Request Rate: `rate(http_requests_total[5m])`
+   - Memory Usage: `nodejs_heap_size_used_bytes`
+   - Active Connections: `http_requests_active`
+3. Customize visualization
+4. Click **Save** → Name: `Compressorr Monitoring`
+
+---
+
+# SECTION B: DEPLOYMENT
+
+## Step 14: Clone & Configure Application
+
+### 14.1 Clone Repository
+
+```bash
+# Create application directory
+sudo mkdir -p /opt/compressorr
+sudo cd /opt/compressorr
+
+# Clone your repository
+sudo git clone <your-repo-url> .
+```
+
+### 14.2 Configure Environment Variables
+
+```bash
+# Edit .env file
+sudo nano .env
+```
+
+**Update the following values:**
+```bash
+JWT_SECRET=your-super-secret-jwt-key-here-change-this
+SESSION_SECRET=your-super-secret-session-key-here-change-this
+GOOGLE_CLIENT_ID=your-google-client-id-if-using-oauth
+GOOGLE_CLIENT_SECRET=your-google-client-secret-if-using-oauth
+GOOGLE_CALLBACK_URL=http://your-domain-or-ip:5000/auth/google/callback
+MONGO_URI=mongodb://mongodb:27017/filetool
+PORT=5000
+NODE_ENV=production
+```
+
+### 14.3 Create Required Directories
+
+```bash
+# Create upload directories
+sudo mkdir -p uploads/profiles
+
+# Set permissions
+sudo chmod -R 755 uploads
+```
+
+---
+
+## Step 15: Docker Deployment
+
+### 15.1 Build Docker Images
 
 ```bash
 # Build backend image
-docker build -t devops-app/backend:latest backend/
+sudo docker build -f Dockerfiles/backend.Dockerfile -t saikiranasamwar4/compressor-backend:latest ./backend
 
-# Tag for ECR
-docker tag devops-app/backend:latest YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/backend:latest
-
-# Push to ECR
-docker push YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/backend:latest
-
-# Build and push frontend
-docker build -t devops-app/frontend:latest frontend/
-
-docker tag devops-app/frontend:latest YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/frontend:latest
-
-docker push YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com/devops-app/frontend:latest
+# Build frontend image
+sudo docker build -f Dockerfiles/frontend.Dockerfile -t saikiranasamwar4/compressor-frontend:latest ./frontend
 ```
 
-#### Step 12A: Deploy to EKS Cluster
-
-Create secrets for database credentials:
+### 15.2 Push Images to DockerHub
 
 ```bash
-kubectl create secret generic db-credentials \
-  --from-literal=username=appuser \
-  --from-literal=password=your-secure-password \
-  -n devops-app
+# Login to DockerHub
+sudo docker login
+
+# Push backend
+sudo docker push saikiranasamwar4/compressor-backend:latest
+
+# Push frontend
+sudo docker push saikiranasamwar4/compressor-frontend:latest
 ```
 
-Deploy PostgreSQL:
+### 15.3 Run with Docker Compose
 
 ```bash
-kubectl apply -f k8s/postgres-deployment.yaml -n devops-app
-kubectl apply -f k8s/postgres-pvc.yaml -n devops-app
+# Start all services
+sudo docker-compose up -d
+
+# View logs
+sudo docker-compose logs -f
+
+# Check running containers
+sudo docker ps
+
+# Stop services
+sudo docker-compose down
 ```
 
-Wait for PostgreSQL to be ready:
+### 15.4 Verify Application
 
 ```bash
-kubectl wait --for=condition=ready pod -l app=postgres -n devops-app --timeout=300s
+# Check backend health
+curl http://localhost:5000/api/health
+
+# Access frontend
+curl http://localhost:8080
 ```
 
-Deploy backend and frontend:
-
-```bash
-kubectl apply -f k8s/backend-deployment.yaml -n devops-app
-kubectl apply -f k8s/frontend-deployment.yaml -n devops-app
-```
-
-Wait for deployments:
-
-```bash
-kubectl wait --for=condition=available --timeout=300s deployment/backend -n devops-app
-kubectl wait --for=condition=available --timeout=300s deployment/frontend -n devops-app
-```
-
-#### Step 13A: Configure AWS Application Load Balancer (ALB)
-
-Update [ingress.yaml](k8s/ingress.yaml) for AWS ALB:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: devops-app-ingress
-  namespace: devops-app
-  annotations:
-    alb.ingress.kubernetes.io/load-balancer-type: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  ingressClassName: alb
-  rules:
-  - host: your-domain.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: frontend
-            port:
-              number: 80
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: backend
-            port:
-              number: 5000
-  tls:
-  - hosts:
-    - your-domain.com
-    secretName: tls-secret
-```
-
-Apply the Ingress:
-
-```bash
-kubectl apply -f k8s/ingress.yaml -n devops-app
-```
-
-Get the ALB DNS name:
-
-```bash
-kubectl get ingress -n devops-app
-```
-
-#### Step 14A: Set Up Auto-Scaling
-
-Enable Cluster Autoscaler:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/master/cluster-autoscaler/cloudprovider/aws/examples/cluster-autoscaler-autodiscover.yaml
-```
-
-Configure Horizontal Pod Autoscaler for backend:
-
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: backend-hpa
-  namespace: devops-app
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: backend
-  minReplicas: 2
-  maxReplicas: 5
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
-```
-
-Apply HPA:
-
-```bash
-kubectl apply -f hpa-backend.yaml
-```
-
-#### Step 15A: Monitor EKS Cluster
-
-View cluster metrics:
-
-```bash
-kubectl top nodes
-kubectl top pods -n devops-app
-```
-
-Check EKS cluster health:
-
-```bash
-aws eks describe-cluster --name devops-app-cluster --region us-east-1 --query 'cluster.health'
-```
+**Access in browser:**
+- Frontend: `http://your-ec2-public-ip:8080`
+- Backend API: `http://your-ec2-public-ip:5000`
 
 ---
 
-### Option B: Using Local Minikube (For Development/Testing)
+## Step 16: Kubernetes (EKS) Deployment
 
-### Step 1B: Start Kubernetes Cluster
-
-If using Minikube:
+### 16.1 Create EKS Cluster
 
 ```bash
-minikube start --cpus=2 --memory=4096
+# Create EKS cluster (takes 15-20 minutes)
+sudo eksctl create cluster \
+  --name compressor-cluster \
+  --region us-east-1 \
+  --nodegroup-name compressor-nodes \
+  --node-type t3.medium \
+  --nodes 2 \
+  --nodes-min 1 \
+  --nodes-max 3 \
+  --managed
+
+# Verify cluster
+kubectl get nodes
 ```
 
-Configure kubectl to use Minikube:
+### 16.2 Create Namespace
 
 ```bash
-minikube config set vm-driver docker
+# Create namespace
+kubectl create namespace media-app
+
+# Set as default
+kubectl config set-context --current --namespace=media-app
 ```
 
-### Step 2: Create Namespace
-
-Kubernetes uses namespaces to organize resources:
+### 16.3 Create MongoDB Secret
 
 ```bash
-kubectl create namespace devops-app
+# Create secret for MongoDB
+kubectl apply -f k8s/mongo/mongo-secret.yaml
+
+# Verify
+kubectl get secrets
 ```
 
-Verify namespace creation:
+### 16.4 Deploy MongoDB
 
 ```bash
-kubectl get namespaces
+# Deploy MongoDB StatefulSet
+kubectl apply -f k8s/mongo/mongo-statefulset.yaml
+
+# Deploy MongoDB Service
+kubectl apply -f k8s/mongo/mongo-service.yaml
+
+# Check status
+kubectl get statefulsets
+kubectl get pods
 ```
 
-### Step 3: Review Kubernetes Manifests
-
-Check all manifest files:
+### 16.5 Deploy Backend
 
 ```bash
-ls k8s/
-cat k8s/namespace.yaml
-cat k8s/secrets.yaml
-cat k8s/postgres-pvc.yaml
-cat k8s/postgres-deployment.yaml
-cat k8s/backend-deployment.yaml
-cat k8s/frontend-deployment.yaml
-cat k8s/ingress.yaml
+# Deploy backend
+kubectl apply -f k8s/backend/backend-deployment.yaml
+kubectl apply -f k8s/backend/backend-service.yaml
+
+# Check status
+kubectl get deployments
+kubectl get pods
+kubectl get services
 ```
 
-### Step 4: Create Secrets
-
-Create Kubernetes secrets for sensitive data:
+### 16.6 Deploy Frontend
 
 ```bash
-kubectl apply -f k8s/secrets.yaml -n devops-app
+# Deploy frontend
+kubectl apply -f k8s/frontend/frontend-deployment.yaml
+kubectl apply -f k8s/frontend/frontend-service.yaml
+
+# Check all resources
+kubectl get all
 ```
 
-Verify secrets creation:
+### 16.7 Access Application
 
 ```bash
-kubectl get secrets -n devops-app
+# Get LoadBalancer URL for frontend
+kubectl get service frontend-service
+
+# Note the EXTERNAL-IP
+# Access: http://<EXTERNAL-IP>
 ```
 
-### Step 5: Create Storage Resources
+### 16.8 Manual Kubernetes Deployment (Alternative to CI/CD)
 
-Create PersistentVolumeClaim for PostgreSQL data:
+If you want to deploy manually without Jenkins, use the provided deployment script:
 
 ```bash
-kubectl apply -f k8s/postgres-pvc.yaml -n devops-app
+# Make script executable
+sudo chmod +x scripts/deploy-k8s.sh
+
+# Run deployment
+sudo ./scripts/deploy-k8s.sh
 ```
 
-Verify PVC creation:
+**Or deploy manually step-by-step:**
 
 ```bash
-kubectl get pvc -n devops-app
+# 1. Update kubeconfig
+aws eks update-kubeconfig --name compressor-cluster --region us-east-1
+
+# 2. Create namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 3. Deploy MongoDB
+kubectl apply -f k8s/mongo/ -n media-app
+kubectl wait --for=condition=ready pod -l app=mongo -n media-app --timeout=300s
+
+# 4. Deploy Backend
+kubectl apply -f k8s/backend/ -n media-app
+kubectl wait --for=condition=ready pod -l app=backend -n media-app --timeout=300s
+
+# 5. Deploy Frontend
+kubectl apply -f k8s/frontend/ -n media-app
+kubectl wait --for=condition=ready pod -l app=frontend -n media-app --timeout=300s
+
+# 6. Deploy Monitoring
+kubectl apply -f k8s/monitoring/ -n media-app
+
+# 7. Verify deployment
+kubectl get all -n media-app
+kubectl get svc -n media-app
 ```
 
-### Step 6: Deploy PostgreSQL
+### 16.9 EKS Cluster Management
 
 ```bash
-kubectl apply -f k8s/postgres-deployment.yaml -n devops-app
+# View all resources
+kubectl get all -n media-app
+
+# View logs
+kubectl logs <pod-name> -n media-app
+kubectl logs -f <pod-name> -n media-app  # Follow logs
+kubectl logs -l app=backend -n media-app  # All backend pods
+
+# Describe resources
+kubectl describe pod <pod-name> -n media-app
+kubectl describe service <service-name> -n media-app
+
+# Scale deployment
+kubectl scale deployment backend --replicas=3 -n media-app
+
+# Update image
+kubectl set image deployment/backend backend=saikiranasamwar4/compressor-backend:v2 -n media-app
+kubectl rollout status deployment/backend -n media-app
+
+# Rollback deployment
+kubectl rollout undo deployment/backend -n media-app
+
+# Restart deployment (without image change)
+kubectl rollout restart deployment/backend -n media-app
+
+# Delete specific resources
+kubectl delete -f k8s/frontend/ -n media-app
+
+# Cleanup everything
+sudo chmod +x scripts/cleanup-k8s.sh
+sudo ./scripts/cleanup-k8s.sh
+
+# Delete cluster (complete cleanup)
+eksctl delete cluster --name compressor-cluster --region us-east-1
 ```
 
-Wait for PostgreSQL pod to be ready:
-
-```bash
-kubectl wait --for=condition=ready pod -l app=postgres -n devops-app --timeout=300s
-```
-
-Verify PostgreSQL deployment:
-
-```bash
-kubectl get pods -n devops-app -l app=postgres
-kubectl get svc -n devops-app
-```
-
-### Step 7: Deploy Backend Application
-
-```bash
-kubectl apply -f k8s/backend-deployment.yaml -n devops-app
-```
-
-Wait for backend pods to be ready:
-
-```bash
-kubectl wait --for=condition=ready pod -l app=backend -n devops-app --timeout=300s
-```
-
-Verify backend deployment:
-
-```bash
-kubectl get pods -n devops-app -l app=backend
-kubectl get svc -n devops-app -l app=backend
-```
-
-Check backend logs:
-
-```bash
-kubectl logs -f deployment/backend -n devops-app
-```
-
-### Step 8: Deploy Frontend Application
-
-```bash
-kubectl apply -f k8s/frontend-deployment.yaml -n devops-app
-```
-
-Wait for frontend pods to be ready:
-
-```bash
-kubectl wait --for=condition=ready pod -l app=frontend -n devops-app --timeout=300s
-```
-
-Verify frontend deployment:
-
-```bash
-kubectl get pods -n devops-app -l app=frontend
-kubectl get svc -n devops-app -l app=frontend
-```
-
-Check frontend logs:
-
-```bash
-kubectl logs -f deployment/frontend -n devops-app
-```
-
-### Step 9: Configure Ingress
-
-Apply Ingress configuration:
-
-```bash
-kubectl apply -f k8s/ingress.yaml -n devops-app
-```
-
-Verify Ingress creation:
-
-```bash
-kubectl get ingress -n devops-app
-```
-
-For Minikube, get the Ingress IP:
-
-```bash
-minikube service -n devops-app frontend --url
-```
-
-### Step 10: Verify All Deployments
-
-Check all resources in the namespace:
-
-```bash
-kubectl get all -n devops-app
-```
-
-This shows:
-- Pods (containers running)
-- Services (load balancers)
-- Deployments (desired state)
-- StatefulSets (if applicable)
-- ReplicaSets (pod replicas)
-
-### Step 11: Port Forward for Testing (Local Testing)
-
-Test backend through port forwarding:
-
-```bash
-kubectl port-forward -n devops-app svc/backend 5000:5000 &
-curl http://localhost:5000
-```
-
-Test frontend through port forwarding:
-
-```bash
-kubectl port-forward -n devops-app svc/frontend 80:80 &
-curl http://localhost
-```
+**Helper Scripts Available:**
+- `scripts/deploy-k8s.sh` - Automated deployment
+- `scripts/rollback-k8s.sh` - Rollback to previous version
+- `scripts/cleanup-k8s.sh` - Remove all resources
+- `scripts/debug-frontend.sh` - Debug frontend issues
+- `scripts/rebuild-frontend.sh` - Rebuild and redeploy frontend
 
 ---
 
-## Jenkins CI/CD Setup
+## Step 17: Setup CI/CD Pipeline
 
-### Step 1: Access Jenkins Dashboard
+### 17.1 Understanding the Jenkinsfile
 
-Get Jenkins initial admin password:
+The project includes a `Jenkinsfile` that defines the complete CI/CD pipeline with the following stages:
 
-```bash
-sudo cat /var/lib/jenkins/secrets/initialAdminPassword
-```
+**Pipeline Stages:**
+1. **Git Checkout** - Clone source code from repository
+2. **SonarQube Analysis** - Code quality and security scan
+3. **Quality Gate Check** - Verify code meets quality standards
+4. **Build & Push Docker Images** - Build backend and frontend containers and push to DockerHub
+5. **Apply Kubernetes Manifests** - Deploy/update all K8s resources (MongoDB, Backend, Frontend, Monitoring)
+6. **Update Container Images** - Update deployments with new Docker images
+7. **Post-Deployment Health Check** - Verify all pods and services are healthy
 
-Copy this password.
+**Kubernetes Resources Deployed:**
+- Namespace (`media-app`)
+- MongoDB (StatefulSet, Service, Secrets)
+- Backend (Deployment, Service)
+- Frontend (Deployment, Service with LoadBalancer)
+- Monitoring (Prometheus, Grafana with ConfigMaps)
 
-Open browser and navigate to:
+**Prerequisites:**
+- All credentials configured (DockerHub, AWS, GitHub, SonarQube)
+- GitHub webhook configured for auto-trigger
+- EKS cluster running and accessible
+- kubectl configured with EKS cluster access
 
-```
-http://your-instance-ip:8080
-```
+### 17.2 Review Jenkinsfile Configuration
 
-### Step 2: Complete Jenkins Setup
-
-1. Paste the initial admin password
-2. Click "Continue"
-3. Choose "Install suggested plugins"
-4. Wait for plugin installation to complete
-5. Create first admin user:
-   - Username: admin
-   - Password: (choose strong password)
-   - Full name: Administrator
-   - Email: your-email@example.com
-6. Click "Save and Continue"
-7. Configure Jenkins URL (use your instance IP)
-8. Click "Save and Finish"
-
-### Step 3: Configure Jenkins Credentials
-
-Jenkins credentials are used to authenticate with external services. This is critical for CI/CD pipelines.
-
-#### Step 3.1: Access Credentials Page
-
-1. Open Jenkins Dashboard: http://your-instance-ip:8080
-2. Click "Manage Jenkins" (gear icon in left sidebar)
-3. Click "Manage Credentials"
-4. Click on "(global)" under "Stores scoped to Jenkins"
-
-#### Step 3.2: Create SSH Key Credential (For Git Access)
-
-This credential is used to clone Git repositories.
-
-**Generate SSH Key (if you don't have one):**
+Before creating the pipeline, review your `Jenkinsfile`:
 
 ```bash
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/jenkins_key -N ""
+# Open and review the Jenkinsfile
+cat Jenkinsfile
 ```
 
-This creates:
-- `~/.ssh/jenkins_key` - Private key
-- `~/.ssh/jenkins_key.pub` - Public key
+**Key Environment Variables in Jenkinsfile:**
+```groovy
+environment {
+    DOCKERHUB_USERNAME = 'saikiranasamwar4'  // Update with your username
+    DOCKERHUB_BACKEND  = "${DOCKERHUB_USERNAME}/compressor-backend"
+    DOCKERHUB_FRONTEND = "${DOCKERHUB_USERNAME}/compressor-frontend"
+    
+    AWS_REGION  = 'us-east-1'  // Your AWS region
+    EKS_CLUSTER = 'compressor-cluster'  // Your EKS cluster name
+    NAMESPACE   = 'media-app'  // Kubernetes namespace
+}
+```
 
-Add public key to GitHub/GitLab:
+**Update these values** if needed to match your configuration.
 
-1. Copy the public key:
-   ```bash
-   cat ~/.ssh/jenkins_key.pub
+### 17.3 Create Jenkins Pipeline Job
+
+1. Open Jenkins UI: `http://your-ec2-public-ip:8080`
+2. Click **New Item** on the left sidebar
+3. Enter name: `Compressorr-Deploy`
+4. Select **Pipeline** (scroll down if needed)
+5. Click **OK**
+
+### 17.4 Configure General Settings
+
+**In the pipeline configuration page:**
+
+1. **Description:** (Optional)
+   ```
+   CI/CD pipeline for Compressorr application - builds Docker images and deploys to EKS
    ```
 
-2. Go to your Git repository settings
-3. Add deploy key or add to user SSH keys
-4. Paste the public key
+2. **Discard old builds:** (Recommended)
+   - Check this option
+   - Strategy: Log Rotation
+   - Max # of builds to keep: `10`
 
-**Add SSH Credentials in Jenkins:**
+### 17.5 Configure Build Triggers
 
-1. Click "Add Credentials" in Jenkins
-2. Choose "Kind": **SSH Username with private key**
-3. Fill in the following fields:
+**Enable GitHub Webhook:**
+1. Under **Build Triggers** section
+2. Check ☑ **GitHub hook trigger for GITScm polling**
+3. This allows automatic builds when you push to GitHub
 
-   - **Scope**: Global (Jenkins, nodes, items, all child items, etc)
-   - **ID**: `git-ssh-key` (use this in Jenkinsfile)
-   - **Description**: Git SSH Key for repository access
-   - **Username**: `git` (for GitHub/GitLab)
-   - **Private Key**: 
-     - Select "Enter directly"
-     - Paste the entire content of `~/.ssh/jenkins_key`
-   - **Passphrase**: (leave empty if you used empty passphrase above)
+**Poll SCM (Alternative):**
+- If webhook doesn't work, use: `H/5 * * * *` (checks every 5 minutes)
 
-4. Click "Create"
+### 17.6 Configure Pipeline Definition
 
-**Verify SSH Credential:**
+**Pipeline Section:**
 
-Click on the credential you created, then click "Test Connection":
+1. **Definition:** Select **Pipeline script from SCM**
 
-```bash
-ssh -i ~/.ssh/jenkins_key git@github.com
+2. **SCM:** Select **Git**
+
+3. **Repository URL:** Enter your GitHub repository URL
+   ```
+   https://github.com/your-username/Compressorr.git
+   ```
+
+4. **Credentials:**
+   - If public repo: Select **- none -**
+   - If private repo: Select **github-credentials** (configured in Step 10.4)
+
+5. **Branches to build:**
+   - Branch Specifier: `*/main`
+   - Or use `*/master` if that's your default branch
+
+6. **Script Path:** `Jenkinsfile`
+   - This tells Jenkins where to find the pipeline script
+
+7. **Lightweight checkout:** ☑ Check this (faster checkout)
+
+### 17.7 Add Pipeline Parameters (Optional)
+
+For more control, add build parameters:
+
+1. Check ☑ **This project is parameterized**
+2. Add parameters:
+
+**String Parameter 1:**
+- Name: `DOCKER_TAG`
+- Default Value: `latest`
+- Description: `Docker image tag to build and deploy`
+
+**Choice Parameter:**
+- Name: `DEPLOY_ENV`
+- Choices: `production`, `staging`, `dev`
+- Description: `Target environment`
+
+**Boolean Parameter:**
+- Name: `RUN_SONAR`
+- Default: `true`
+- Description: `Run SonarQube code analysis`
+
+### 17.8 Save and Verify Configuration
+
+1. Click **Save** at the bottom
+2. You'll be redirected to the pipeline dashboard
+3. Verify all settings are correct
+
+### 17.9 Run the Pipeline (First Build)
+
+**Trigger Manual Build:**
+
+1. Click **Build Now** on the left sidebar
+2. A build will appear under **Build History**
+3. Click on **#1** (build number)
+4. Click **Console Output** to view real-time logs
+
+**Expected Pipeline Flow:**
+```
+Started by user admin
+[Pipeline] Start
+[Pipeline] node
+[Pipeline] stage (Git Checkout)
+  ✓ Checking out code from repository...
+  
+[Pipeline] stage (SonarQube Analysis)
+  ✓ Running code quality scan...
+  
+[Pipeline] stage (SonarQube Quality Gate)
+  ✓ Waiting for quality gate...
+  ✓ Quality gate passed
+  
+[Pipeline] stage (Build & Push Docker Images)
+  ✓ Building backend Docker image...
+  ✓ Building frontend Docker image...
+  ✓ Pushing to DockerHub...
+  
+[Pipeline] stage (Apply Kubernetes Manifests)
+  ✓ Creating namespace media-app...
+  ✓ Deploying MongoDB...
+  ✓ Deploying Backend...
+  ✓ Deploying Frontend...
+  ✓ Deploying Monitoring stack...
+  
+[Pipeline] stage (Update Container Images)
+  ✓ Updating backend deployment...
+  ✓ Updating frontend deployment...
+  ✓ Waiting for rollouts...
+  
+[Pipeline] stage (Post-Deployment Health Check)
+  ✓ Checking all pods...
+  ✓ Checking services...
+  ✓ Getting LoadBalancer URLs...
+  
+[Pipeline] End
+SUCCESS - Build completed in 12m 45s
 ```
 
-Should show: "Hi username! You've successfully authenticated..."
+### 17.10 Monitor Pipeline Execution
 
-#### Step 3.3: Create Docker Hub Credential
+**During Build:**
+- Watch **Console Output** for real-time progress
+- Each stage shows success ✓ or failure ✗
+- Build progress bar shows overall completion
 
-This credential is used to push Docker images to Docker Hub.
+**After Build:**
+1. **Status Indicator:**
+   - ☀️ Blue/Green = Success
+   - ⛈️ Red = Failure
+   - ⚠️ Yellow = Unstable
 
-**Create Docker Hub Account (if needed):**
+2. **Check Stage View:**
+   - Click on the build number
+   - View graphical stage breakdown
+   - See time taken for each stage
 
-1. Go to https://hub.docker.com
-2. Sign up or log in
-3. Create a Personal Access Token (better than password):
-   - Click your profile → Account Settings → Security
-   - Click "New Access Token"
-   - Name it: `jenkins-token`
-   - Copy the token
+3. **Review Logs:**
+   - Scroll through console output
+   - Look for errors or warnings
+   - Verify image tags and deployment status
 
-**Add Docker Hub Credentials in Jenkins:**
+### 17.11 Verify Deployment Success
 
-1. Click "Add Credentials"
-2. Choose "Kind": **Username with password**
-3. Fill in:
-
-   - **Scope**: Global
-   - **ID**: `dockerhub` (use in Jenkinsfile)
-   - **Description**: Docker Hub Registry Credentials
-   - **Username**: Your Docker Hub username
-   - **Password**: The access token you created above
-   - **Create**: Jenkins Credential Provider
-
-4. Click "Create"
-
-#### Step 3.4: Create ECR Credential (For AWS)
-
-For pushing images to Amazon ECR.
-
-**Create AWS IAM User for ECR (if needed):**
-
-1. Go to AWS IAM console
-2. Create new user: `jenkins-ecr`
-3. Attach policy: `AmazonEC2ContainerRegistryPowerUser`
-4. Create Access Key:
-   - Click user → Security credentials → Create access key
-   - Copy Access Key ID and Secret Access Key
-
-**Add ECR Credentials in Jenkins:**
-
-1. Click "Add Credentials"
-2. Choose "Kind": **AWS Credentials**
-3. Fill in:
-
-   - **Scope**: Global
-   - **ID**: `aws-ecr-credentials` (use in Jenkinsfile)
-   - **Description**: AWS ECR Push Credentials
-   - **Access Key ID**: Your AWS access key
-   - **Secret Access Key**: Your AWS secret key
-   - **Create**: Jenkins Credential Provider
-
-4. Click "Create"
-
-#### Step 3.5: Create GitHub/GitLab Token Credential
-
-For accessing repositories via HTTPS instead of SSH.
-
-**Generate GitHub Personal Token:**
-
-1. Go to GitHub → Settings → Developer settings → Personal access tokens
-2. Click "Generate new token"
-3. Name: `jenkins-token`
-4. Select scopes:
-   - `repo` (full control of private repositories)
-   - `workflow` (update GitHub Actions and workflows)
-5. Click "Generate token"
-6. Copy the token
-
-**Add GitHub Token in Jenkins:**
-
-1. Click "Add Credentials"
-2. Choose "Kind": **Secret text**
-3. Fill in:
-
-   - **Scope**: Global
-   - **ID**: `github-token` (use in Jenkinsfile)
-   - **Description**: GitHub Personal Access Token
-   - **Secret**: Paste your GitHub token
-
-4. Click "Create"
-
-#### Step 3.6: Create Kubernetes Config Credential
-
-For deploying to Kubernetes clusters.
-
-**Get kubeconfig:**
+**After successful pipeline run:**
 
 ```bash
-cat ~/.kube/config
+# SSH to your EC2 instance
+ssh -i your-key.pem ec2-user@your-ec2-ip
+
+# Check EKS deployments
+kubectl get deployments -n media-app
+
+# Check if new images are deployed
+kubectl describe deployment backend -n media-app | grep Image
+
+# Check pod status
+kubectl get pods -n media-app
+
+# View recent pod logs
+kubectl logs -n media-app deployment/backend --tail=50
 ```
 
-Copy the entire content.
-
-**Add Kubernetes Credentials in Jenkins:**
-
-1. Click "Add Credentials"
-2. Choose "Kind**: **Secret file**
-3. Fill in:
-
-   - **Scope**: Global
-   - **ID**: `kubeconfig` (use in Jenkinsfile)
-   - **Description**: Kubernetes Config File
-   - **File**: Upload your kubeconfig file (or use content from above)
-
-4. Click "Create"
-
-For EKS specifically:
-
-```bash
-aws eks update-kubeconfig --name devops-app-cluster --region us-east-1
+**Expected Output:**
+```
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+backend    2/2     2            2           5m
+frontend   2/2     2            2           5m
 ```
 
-Then upload the generated kubeconfig file.
+### 17.12 Configure Pipeline Notifications (Optional)
 
-#### Step 3.7: Create PostgreSQL Credentials
+**Add Email Notifications:**
 
-For database access in scripts.
+1. Edit pipeline job → **Configure**
+2. Add **Post-build Actions**
+3. Select **Editable Email Notification**
+4. Configure:
+   - Recipients: `your-email@example.com`
+   - Triggers: **Failure - Any**, **Success**
 
-**Add Database Credentials:**
+**Add Slack Notifications:**
 
-1. Click "Add Credentials"
-2. Choose "Kind**: **Username with password**
-3. Fill in:
+1. Install **Slack Notification** plugin
+2. Configure Slack webhook in Jenkins
+3. Add to Jenkinsfile:
+   ```groovy
+   post {
+       success {
+           slackSend color: 'good', message: "Build Successful: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+       }
+       failure {
+           slackSend color: 'danger', message: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+       }
+   }
+   ```
 
-   - **Scope**: Global
-   - **ID**: `postgres-credentials` (use in Jenkinsfile)
-   - **Description**: PostgreSQL Database Credentials
-   - **Username**: `appuser`
-   - **Password**: Your secure database password
+### 17.13 Automatic Builds via GitHub Webhook
 
-4. Click "Create"
+**Test Webhook Trigger:**
 
-#### Step 3.8: Create Slack Webhook (For Notifications)
+1. Make a small change to your code locally
+2. Commit and push to GitHub:
+   ```bash
+   git add .
+   git commit -m "Test CI/CD trigger"
+   git push origin main
+   ```
+3. Jenkins should automatically start a new build
+4. Check **Build History** for new build number
+5. GitHub webhook should show delivery in repo Settings → Webhooks
 
-To receive build notifications in Slack.
+**Troubleshoot Webhook:**
+- Check Jenkins is accessible from internet (not localhost)
+- Verify webhook URL: `http://your-ec2-public-ip:8080/github-webhook/`
+- Check GitHub webhook delivery logs for errors
+- Ensure security group allows port 8080
 
-**Create Slack Webhook:**
+### 17.14 Pipeline Best Practices
 
-1. Go to Slack → Apps & integrations
-2. Search for "Incoming WebHooks"
-3. Click "Add to Slack"
-4. Select channel (e.g., #devops)
-5. Copy the Webhook URL
+**Security:**
+- Never hardcode credentials in Jenkinsfile
+- Use Jenkins credentials manager
+- Rotate access tokens regularly
+- Use minimal IAM permissions for AWS
 
-**Add Webhook in Jenkins:**
+**Performance:**
+- Use Docker build cache
+- Parallelize independent stages
+- Clean workspace after builds
+- Archive artifacts selectively
 
-1. Click "Add Credentials"
-2. Choose "Kind**: **Secret text**
-3. Fill in:
+**Monitoring:**
+- Review build trends regularly
+- Set up failure alerts
+- Monitor build duration
+- Track deployment frequency
 
-   - **Scope**: Global
-   - **ID**: `slack-webhook` (use in Jenkinsfile)
-   - **Description**: Slack Webhook for Build Notifications
-   - **Secret**: Paste the webhook URL
+### 17.15 Common Pipeline Issues and Solutions
 
-4. Click "Create"
-
-#### Step 3.9: Create Email Credentials
-
-For sending email notifications.
-
-**Add Email Credentials:**
-
-1. Click "Add Credentials"
-2. Choose "Kind**: **Username with password**
-3. Fill in:
-
-   - **Scope**: Global
-   - **ID**: `email-credentials` (use in Jenkinsfile)
-   - **Description**: Email SMTP Credentials
-   - **Username**: Your email address
-   - **Password**: Your email password or app password
-
-4. Click "Create"
-
-#### Step 3.10: Verify All Credentials
-
-View all created credentials:
-
-```bash
-# List all credentials in Jenkins
-curl -u admin:your-password http://localhost:8080/credentials/store/system/domain/_/api/json
+**Issue 1: Docker Login Failed**
+```
+Solution:
+- Verify dockerhub-credentials in Jenkins
+- Check DockerHub username/password
+- Test login manually: docker login
 ```
 
-Click on each credential to verify they're correct and working.
+**Issue 2: AWS EKS Access Denied**
+```
+Solution:
+- Verify aws-credentials are correct
+- Check IAM permissions
+- Update kubeconfig: aws eks update-kubeconfig --name cluster-name
+```
+
+**Issue 3: Image Not Found**
+```
+Solution:
+- Verify image was pushed to DockerHub
+- Check image name matches in deployment YAML
+- Ensure image tag is correct
+```
+
+**Issue 4: Deployment Timeout**
+```
+Solution:
+- Check pod events: kubectl describe pod <pod-name>
+- Verify container image can be pulled
+- Check resource limits in deployment
+```
+
+**Issue 5: Webhook Not Triggering**
+```
+Solution:
+- Check GitHub webhook delivery logs
+- Verify Jenkins URL is accessible
+- Ensure GitHub hook trigger is enabled in job
+- Check firewall/security group rules
+```
+
+### 17.16 View Pipeline Metrics
+
+**In Jenkins Dashboard:**
+- Click on pipeline job name
+- View **Build History** graph
+- Check **Stage View** for bottlenecks
+- Review **Trend** for success rate
+
+**Useful Metrics:**
+- Build success rate
+- Average build duration
+- Most frequent failure stage
+- Deployment frequency
 
 ---
 
-### Step 4: Create Pipeline Job with Detailed Jenkinsfile
+## Step 18: Verify Monitoring
 
-#### Step 4.1: Create New Pipeline Job
+### 18.1 Verify Prometheus
 
-1. Click "New Item"
-2. Enter job name: `Python-DevOps-Pipeline`
-3. Select "Pipeline"
-4. Click "OK"
+```bash
+# Access Prometheus UI
+# Browser: http://your-ec2-public-ip:9090
 
-#### Step 4.2: Configure Pipeline
+# Check if targets are UP
+# Go to Status → Targets
 
-In the Pipeline section, select:
-- **Definition**: Pipeline script from SCM
-- **SCM**: Git
-- **Repository URL**: `https://github.com/your-username/Python-DevOps.git`
-- **Credentials**: Select the GitHub token or SSH key created above
-- **Branch Specifier**: `*/main` or `*/master`
-- **Script Path**: `Jenkinsfile`
-
-#### Step 4.3: Create Comprehensive Jenkinsfile
-
-Create a detailed Jenkinsfile in your project root:
-
-```groovy
-pipeline {
-    agent any
-    
-    environment {
-        // Docker Registry
-        DOCKER_REGISTRY = 'YOUR-ACCOUNT-ID.dkr.ecr.us-east-1.amazonaws.com'
-        DOCKER_REGISTRY_CREDENTIALS = 'aws-ecr-credentials'
-        
-        // ECR Repository Names
-        BACKEND_IMAGE = "${DOCKER_REGISTRY}/devops-app/backend"
-        FRONTEND_IMAGE = "${DOCKER_REGISTRY}/devops-app/frontend"
-        
-        // Kubernetes
-        KUBE_NAMESPACE = 'devops-app'
-        KUBE_CLUSTER = 'devops-app-cluster'
-        KUBECONFIG = credentials('kubeconfig')
-        
-        // Git
-        GIT_CREDENTIALS = 'git-ssh-key'
-        
-        // Slack
-        SLACK_WEBHOOK = credentials('slack-webhook')
-        
-        // Version
-        BUILD_VERSION = "${BUILD_NUMBER}"
-        BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd-HHmmss')}"
-    }
-    
-    options {
-        // Keep last 10 builds
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        
-        // Timeout after 1 hour
-        timeout(time: 1, unit: 'HOURS')
-        
-        // Disable concurrent builds
-        disableConcurrentBuilds()
-        
-        // Add timestamps to console output
-        timestamps()
-    }
-    
-    triggers {
-        // Trigger on Git push
-        githubPush()
-        
-        // Poll SCM every 15 minutes
-        pollSCM('H/15 * * * *')
-    }
-    
-    stages {
-        stage('Checkout') {
-            steps {
-                echo "========== Checking out code from repository =========="
-                checkout(
-                    [
-                        $class: 'GitSCM',
-                        branches: [[name: '*/main']],
-                        userRemoteConfigs: [[
-                            url: 'https://github.com/your-username/Python-DevOps.git',
-                            credentialsId: 'github-token'
-                        ]]
-                    ]
-                )
-                
-                echo "Current commit: ${GIT_COMMIT}"
-                echo "Branch: ${GIT_BRANCH}"
-            }
-        }
-        
-        stage('Validate') {
-            steps {
-                echo "========== Validating configuration files =========="
-                
-                // Validate Docker Compose syntax
-                sh 'docker-compose config > /dev/null'
-                echo "✓ Docker Compose configuration is valid"
-                
-                // Validate Kubernetes manifests
-                sh '''
-                    for file in k8s/*.yaml; do
-                        echo "Validating $file..."
-                        kubectl apply -f $file --dry-run=client --namespace=${KUBE_NAMESPACE} || exit 1
-                    done
-                '''
-                echo "✓ Kubernetes manifests are valid"
-                
-                // Lint Jenkinsfile
-                sh 'groovy -c "echo 'Jenkinsfile syntax is valid'"'
-                echo "✓ Jenkinsfile syntax is valid"
-            }
-        }
-        
-        stage('Build Backend') {
-            steps {
-                echo "========== Building backend Docker image =========="
-                
-                dir('backend') {
-                    sh '''
-                        docker build \
-                            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-                            --build-arg VCS_REF=${GIT_COMMIT:0:8} \
-                            --build-arg VERSION=${BUILD_VERSION} \
-                            -t ${BACKEND_IMAGE}:${BUILD_VERSION} \
-                            -t ${BACKEND_IMAGE}:latest \
-                            .
-                    '''
-                    echo "✓ Backend image built successfully"
-                }
-            }
-        }
-        
-        stage('Build Frontend') {
-            steps {
-                echo "========== Building frontend Docker image =========="
-                
-                dir('frontend') {
-                    sh '''
-                        docker build \
-                            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-                            --build-arg VCS_REF=${GIT_COMMIT:0:8} \
-                            --build-arg VERSION=${BUILD_VERSION} \
-                            -t ${FRONTEND_IMAGE}:${BUILD_VERSION} \
-                            -t ${FRONTEND_IMAGE}:latest \
-                            .
-                    '''
-                    echo "✓ Frontend image built successfully"
-                }
-            }
-        }
-        
-        stage('Test Backend') {
-            steps {
-                echo "========== Running backend unit tests =========="
-                
-                dir('backend') {
-                    sh '''
-                        # Create virtual environment
-                        python3 -m venv test-venv
-                        source test-venv/bin/activate
-                        
-                        # Install dependencies
-                        pip install -r requirements.txt pytest pytest-cov
-                        
-                        # Run tests with coverage
-                        pytest --cov=app --cov-report=xml --cov-report=html tests/ || exit 1
-                    '''
-                    echo "✓ Backend tests passed"
-                }
-            }
-        }
-        
-        stage('Security Scan') {
-            steps {
-                echo "========== Running security scans =========="
-                
-                // Scan for vulnerabilities in dependencies
-                sh '''
-                    cd backend
-                    pip install bandit safety
-                    
-                    # Bandit: Check for security issues in Python code
-                    bandit -r app/ -f json -o bandit-report.json || echo "Vulnerabilities found, continuing..."
-                    
-                    # Safety: Check for known vulnerabilities in dependencies
-                    safety check --json > safety-report.json || echo "Unsafe packages found, continuing..."
-                '''
-                
-                // Scan Docker images for vulnerabilities
-                sh '''
-                    echo "Scanning backend image for vulnerabilities..."
-                    trivy image --severity HIGH,CRITICAL ${BACKEND_IMAGE}:${BUILD_VERSION} || echo "Vulnerabilities found in image"
-                    
-                    echo "Scanning frontend image for vulnerabilities..."
-                    trivy image --severity HIGH,CRITICAL ${FRONTEND_IMAGE}:${BUILD_VERSION} || echo "Vulnerabilities found in image"
-                '''
-                
-                echo "✓ Security scans completed (check reports for details)"
-            }
-        }
-        
-        stage('Push to Registry') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo "========== Pushing images to AWS ECR =========="
-                
-                withAWS(credentials: 'aws-ecr-credentials', region: 'us-east-1') {
-                    sh '''
-                        # Login to ECR
-                        aws ecr get-login-password --region us-east-1 | \
-                        docker login --username AWS --password-stdin ${DOCKER_REGISTRY}
-                        
-                        # Push backend image
-                        docker push ${BACKEND_IMAGE}:${BUILD_VERSION}
-                        docker push ${BACKEND_IMAGE}:latest
-                        echo "✓ Backend image pushed to ECR"
-                        
-                        # Push frontend image
-                        docker push ${FRONTEND_IMAGE}:${BUILD_VERSION}
-                        docker push ${FRONTEND_IMAGE}:latest
-                        echo "✓ Frontend image pushed to ECR"
-                    '''
-                }
-            }
-        }
-        
-        stage('Deploy to EKS') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo "========== Deploying to EKS cluster =========="
-                
-                withAWS(credentials: 'aws-ecr-credentials', region: 'us-east-1') {
-                    sh '''
-                        # Update kubeconfig for EKS
-                        aws eks update-kubeconfig --name ${KUBE_CLUSTER} --region us-east-1
-                        
-                        # Create namespace if it doesn't exist
-                        kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-                        
-                        # Create image pull secret
-                        kubectl create secret docker-registry ecr-secret \
-                            --docker-server=${DOCKER_REGISTRY} \
-                            --docker-username=AWS \
-                            --docker-password=$(aws ecr get-login-password --region us-east-1) \
-                            -n ${KUBE_NAMESPACE} \
-                            --dry-run=client -o yaml | kubectl apply -f -
-                        
-                        # Apply Kubernetes manifests
-                        kubectl apply -f k8s/postgres-pvc.yaml -n ${KUBE_NAMESPACE}
-                        kubectl apply -f k8s/postgres-deployment.yaml -n ${KUBE_NAMESPACE}
-                        
-                        # Wait for PostgreSQL to be ready
-                        kubectl wait --for=condition=ready pod -l app=postgres -n ${KUBE_NAMESPACE} --timeout=300s
-                        
-                        # Update image tags in deployment manifests
-                        kubectl set image deployment/backend \
-                            backend=${BACKEND_IMAGE}:${BUILD_VERSION} \
-                            -n ${KUBE_NAMESPACE} || \
-                        kubectl apply -f k8s/backend-deployment.yaml -n ${KUBE_NAMESPACE}
-                        
-                        kubectl set image deployment/frontend \
-                            frontend=${FRONTEND_IMAGE}:${BUILD_VERSION} \
-                            -n ${KUBE_NAMESPACE} || \
-                        kubectl apply -f k8s/frontend-deployment.yaml -n ${KUBE_NAMESPACE}
-                        
-                        # Apply ingress
-                        kubectl apply -f k8s/ingress.yaml -n ${KUBE_NAMESPACE}
-                        
-                        # Wait for deployments
-                        kubectl rollout status deployment/backend -n ${KUBE_NAMESPACE} --timeout=5m
-                        kubectl rollout status deployment/frontend -n ${KUBE_NAMESPACE} --timeout=5m
-                        
-                        echo "✓ Deployment completed successfully"
-                        
-                        # Display deployment status
-                        echo "========== Deployment Status =========="
-                        kubectl get all -n ${KUBE_NAMESPACE}
-                        
-                        echo "========== Service Details =========="
-                        kubectl describe svc -n ${KUBE_NAMESPACE}
-                    '''
-                }
-            }
-        }
-        
-        stage('Health Check') {
-            steps {
-                echo "========== Performing health checks =========="
-                
-                sh '''
-                    # Wait a bit for services to stabilize
-                    sleep 10
-                    
-                    # Check backend health
-                    BACKEND_POD=$(kubectl get pods -n ${KUBE_NAMESPACE} -l app=backend -o jsonpath='{.items[0].metadata.name}')
-                    if [ ! -z "$BACKEND_POD" ]; then
-                        echo "Testing backend pod: $BACKEND_POD"
-                        kubectl exec -it $BACKEND_POD -n ${KUBE_NAMESPACE} -- curl -f http://localhost:5000/health || echo "Health check endpoint not available"
-                    fi
-                    
-                    # Check frontend health
-                    FRONTEND_POD=$(kubectl get pods -n ${KUBE_NAMESPACE} -l app=frontend -o jsonpath='{.items[0].metadata.name}')
-                    if [ ! -z "$FRONTEND_POD" ]; then
-                        echo "Testing frontend pod: $FRONTEND_POD"
-                        kubectl exec -it $FRONTEND_POD -n ${KUBE_NAMESPACE} -- curl -f http://localhost || echo "Frontend health check failed"
-                    fi
-                    
-                    echo "✓ Health checks completed"
-                '''
-            }
-        }
-        
-        stage('Notification') {
-            steps {
-                echo "========== Sending notifications =========="
-                
-                script {
-                    // Prepare message based on status
-                    def status = currentBuild.result ?: 'SUCCESS'
-                    def color = status == 'SUCCESS' ? 'good' : 'danger'
-                    def emoji = status == 'SUCCESS' ? '✓' : '✗'
-                    
-                    // Send to Slack
-                    sh '''
-                        curl -X POST -H 'Content-type: application/json' \
-                        --data "{
-                            \"text\": \"${emoji} Build ${BUILD_NUMBER} ${status}\",
-                            \"attachments\": [{
-                                \"color\": \"${color}\",
-                                \"fields\": [
-                                    {\"title\": \"Project\", \"value\": \"Python-DevOps\", \"short\": true},
-                                    {\"title\": \"Build\", \"value\": \"${BUILD_NUMBER}\", \"short\": true},
-                                    {\"title\": \"Status\", \"value\": \"${status}\", \"short\": true},
-                                    {\"title\": \"Branch\", \"value\": \"${GIT_BRANCH}\", \"short\": true},
-                                    {\"title\": \"Commit\", \"value\": \"${GIT_COMMIT:0:8}\", \"short\": true},
-                                    {\"title\": \"Duration\", \"value\": \"${currentBuild.durationString}\", \"short\": true}
-                                ],
-                                \"actions\": [{
-                                    \"type\": \"button\",
-                                    \"text\": \"View Build\",
-                                    \"url\": \"${BUILD_URL}\"
-                                }]
-                            }]
-                        }" ${SLACK_WEBHOOK}
-                    '''
-                    
-                    echo "✓ Notifications sent"
-                }
-            }
-        }
-    }
-    
-    post {
-        always {
-            echo "========== Pipeline Cleanup =========="
-            
-            // Archive test reports
-            junit allowEmptyResults: true, testResults: 'backend/test-results.xml'
-            
-            // Publish coverage reports
-            publishHTML(
-                allowMissing: false,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'backend/htmlcov',
-                reportFiles: 'index.html',
-                reportName: 'Coverage Report'
-            )
-            
-            // Clean workspace
-            cleanWs()
-        }
-        
-        success {
-            echo "========== Pipeline Succeeded =========="
-            
-            // Send success notification (already done in Notification stage)
-            script {
-                sh '''
-                    echo "Build completed successfully!"
-                    echo "Application deployed to: ${KUBE_CLUSTER}"
-                    echo "Namespace: ${KUBE_NAMESPACE}"
-                '''
-            }
-        }
-        
-        failure {
-            echo "========== Pipeline Failed =========="
-            
-            // Send failure notification
-            script {
-                sh '''
-                    echo "Build failed!"
-                    echo "Check logs for details: ${BUILD_URL}console"
-                '''
-            }
-        }
-        
-        unstable {
-            echo "========== Pipeline Unstable =========="
-            
-            // Send warning notification
-            script {
-                sh '''
-                    echo "Build is unstable!"
-                    echo "Review test results: ${BUILD_URL}testReport"
-                '''
-            }
-        }
-    }
-}
+# Run sample queries:
+# - up (shows all targets)
+# - rate(http_requests_total[5m])
+# - nodejs_heap_size_used_bytes
 ```
 
-#### Step 4.4: Save and Test Pipeline
+### 18.2 Verify Grafana Dashboards
 
-1. Click "Save" in Jenkins
-2. Click "Build Now" to trigger first build
-3. Monitor build progress in "Console Output"
+```bash
+# Access Grafana UI
+# Browser: http://your-ec2-public-ip:3000
+
+# Login with admin credentials
+# Verify Prometheus data source is connected (green check)
+
+# Check dashboards:
+# - Node Exporter Full (ID: 1860)
+# - Compressorr Custom Dashboard (if imported)
+```
+
+### 18.3 Monitor Application Metrics
+
+**Key Metrics to Monitor:**
+
+1. **System Metrics (Node Exporter Dashboard):**
+   - CPU Usage
+   - Memory Usage
+   - Disk I/O
+   - Network Traffic
+
+2. **Application Metrics (Backend):**
+   - HTTP Request Rate: `rate(http_requests_total[5m])`
+   - Response Time: `http_request_duration_seconds`
+   - Active Connections: `nodejs_active_handles`
+   - Memory Heap: `nodejs_heap_size_used_bytes`
+
+3. **Alerts (Optional):**
+   - Set up alerts in Grafana for high CPU, memory, or error rates
+
+**Access URLs:**
+- Prometheus: `http://your-ec2-public-ip:9090`
+- Grafana: `http://your-ec2-public-ip:3000`
 
 ---
 
-### Step 5: Configure Pipeline Triggers
+# SECTION C: REFERENCE
 
-#### Step 5.1: GitHub Webhook Setup
+## Environment Variables
 
-For automatic builds on Git push:
-
-1. Go to your GitHub repository → Settings → Webhooks
-2. Click "Add webhook"
-3. Configure:
-
-   - **Payload URL**: `http://your-jenkins-ip:8080/github-webhook/`
-   - **Content type**: `application/json`
-   - **Events**: Select "Push events" and "Pull Requests"
-   - **Active**: Yes
-
-4. Click "Add webhook"
-
-#### Step 5.2: Verify Webhook
-
-In Jenkins, go to:
-1. Manage Jenkins → System
-2. Search for "GitHub"
-3. Set up "GitHub Server"
-4. Test connection
-
----
-
-### Step 6: Pipeline Job Configuration Options
-
-#### Step 6.1: Build Triggers
-
-Configure automatic build triggers:
-
-1. In Jenkins job, click "Configure"
-2. Go to "Build Triggers" section
-3. Options:
-
-   - **GitHub hook trigger for GITScm polling**: Trigger on Git push
-   - **Poll SCM**: `H/15 * * * *` (every 15 minutes)
-   - **Build periodically**: `H H * * *` (daily)
-
-#### Step 6.2: Post-Build Actions
-
-Configure post-build notifications:
-
-1. Add "Slack Notification"
-2. Add "Email Notification"
-3. Add "Archive artifacts"
-4. Add "Publish test results"
-
-#### Step 6.3: Pipeline Options
-
-In Jenkinsfile, configure:
-
-```groovy
-options {
-    // Keep builds
-    buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '5'))
-    
-    // Timeout
-    timeout(time: 1, unit: 'HOURS')
-    
-    // Disable concurrent builds
-    disableConcurrentBuilds()
-    
-    // Timestamps
-    timestamps()
-}
-```
-
----
-
----
-
-## Monitoring with Prometheus and Grafana
-
-### Step 1: Review Monitoring Configuration
-
-Check Prometheus configuration:
+### Required Variables (.env file)
 
 ```bash
-cat monitoring/prometheus-config.yaml
+# Security
+JWT_SECRET=<random-string-min-32-chars>
+SESSION_SECRET=<random-string-min-32-chars>
+
+# OAuth (Optional)
+GOOGLE_CLIENT_ID=<your-google-client-id>
+GOOGLE_CLIENT_SECRET=<your-google-client-secret>
+GOOGLE_CALLBACK_URL=http://your-domain:5000/auth/google/callback
+
+# Database
+MONGO_URI=mongodb://mongodb:27017/filetool
+
+# Server
+PORT=5000
+NODE_ENV=production
 ```
 
-Check Grafana configuration:
+### Generate Secure Secrets
 
 ```bash
-cat monitoring/grafana-deployment.yaml
-cat monitoring/grafana-dashboard.json
+# Generate random JWT secret
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Generate random session secret
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
-
-### Step 2: Deploy Prometheus
-
-If using Kubernetes:
-
-```bash
-kubectl apply -f monitoring/prometheus-rbac.yaml
-kubectl apply -f monitoring/prometheus-deployment.yaml
-```
-
-For Docker Compose, add to docker-compose.yml or run:
-
-```bash
-docker run -d \
-  --name prometheus \
-  -p 9090:9090 \
-  -v ~/projects/Python-DevOps/monitoring/prometheus-config.yaml:/etc/prometheus/prometheus.yml \
-  prom/prometheus:latest
-```
-
-Verify Prometheus is running:
-
-```bash
-curl http://localhost:9090
-```
-
-Access Prometheus dashboard:
-
-```
-http://your-instance-ip:9090
-```
-
-### Step 3: Deploy Grafana
-
-If using Kubernetes:
-
-```bash
-kubectl apply -f monitoring/grafana-datasource.yaml
-kubectl apply -f monitoring/grafana-deployment.yaml
-kubectl apply -f monitoring/grafana-dashboard-config.yaml
-```
-
-For Docker Compose:
-
-```bash
-docker run -d \
-  --name grafana \
-  -p 3000:3000 \
-  -e GF_SECURITY_ADMIN_PASSWORD=admin \
-  grafana/grafana:latest
-```
-
-Access Grafana dashboard:
-
-```
-http://your-instance-ip:3000
-```
-
-Default credentials:
-- Username: admin
-- Password: admin (change on first login)
-
-### Step 4: Configure Data Source in Grafana
-
-1. Navigate to Grafana
-2. Click "Configuration" → "Data Sources"
-3. Click "Add data source"
-4. Select "Prometheus"
-5. Configure URL: `http://prometheus:9090`
-6. Click "Save & Test"
-
-### Step 5: Import Grafana Dashboard
-
-1. Click "+" → "Import"
-2. Upload the dashboard JSON file: `monitoring/grafana-dashboard.json`
-3. Select Prometheus data source
-4. Click "Import"
-
-### Step 6: View Metrics
-
-Monitor application performance:
-
-1. Check available metrics in Prometheus dashboard
-2. View dashboards in Grafana
-3. Set up alerts for critical metrics
-
-Example metrics to monitor:
-- CPU usage
-- Memory usage
-- Request latency
-- Error rates
-- Database connection pool status
 
 ---
 
 ## Troubleshooting
 
-### Issue: Docker Services Won't Start
+### Frontend/Nginx Issues
 
-**Problem**: `docker-compose up` fails or services don't start.
+**Problem: LoadBalancer shows default nginx page instead of application**
 
-**Solution**:
+This is usually caused by incorrect nginx configuration or files not being copied properly.
 
-1. Check Docker daemon status:
-   ```bash
-   sudo systemctl status docker
-   ```
+**Solution 1: Rebuild and redeploy the frontend image**
+```bash
+# Use the automated rebuild script
+sudo chmod +x scripts/rebuild-frontend.sh
+sudo ./scripts/rebuild-frontend.sh
+```
 
-2. Start Docker if stopped:
-   ```bash
-   sudo systemctl start docker
-   ```
+**Solution 2: Manual fix steps**
+```bash
+# 1. Rebuild the Docker image
+sudo docker build -f Dockerfiles/frontend.Dockerfile -t saikiranasamwar4/compressor-frontend:v1.1 .
 
-3. Check Docker Compose syntax:
-   ```bash
-   docker-compose config
-   ```
+# 2. Test locally first
+sudo docker run -d --name test-frontend -p 8080:80 saikiranasamwar4/compressor-frontend:v1.1
 
-4. View detailed error logs:
-   ```bash
-   docker-compose logs
-   ```
+# 3. Verify it works
+curl http://localhost:8080/health
+curl http://localhost:8080/  # Should show your HTML, not nginx default
 
-### Issue: PostgreSQL Connection Refused
+# 4. If test passes, push to Docker Hub
+sudo docker push saikiranasamwar4/compressor-frontend:v1.1
 
-**Problem**: Cannot connect to PostgreSQL database.
+# 5. Delete existing pods to pull new image
+kubectl delete pods -n media-app -l app=frontend
 
-**Solution**:
+# 6. Wait for pods to be ready
+kubectl wait --for=condition=ready pod -n media-app -l app=frontend --timeout=120s
 
-1. Check if PostgreSQL container is running:
-   ```bash
-   docker-compose ps postgres
-   ```
+# 7. Test the LoadBalancer URL
+LB_URL=$(kubectl get svc frontend-service -n media-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+curl http://$LB_URL/health
+```
 
-2. Wait for PostgreSQL to initialize (30-60 seconds):
-   ```bash
-   docker-compose logs postgres
-   ```
+**Solution 3: Debug the deployment**
+```bash
+# Use the debug script
+sudo chmod +x scripts/debug-frontend.sh
+sudo ./scripts/debug-frontend.sh
 
-3. Verify connection string in backend config:
-   ```bash
-   cat backend/config.py
-   ```
+# Or manually check:
+POD_NAME=$(kubectl get pods -n media-app -l app=frontend -o jsonpath='{.items[0].metadata.name}')
 
-4. Test connection manually:
-   ```bash
-   docker-compose exec postgres psql -U appuser -d appdb -c "SELECT 1;"
-   ```
+# Check files in the container
+kubectl exec -n media-app $POD_NAME -- ls -la /usr/share/nginx/html/
 
-### Issue: Port Already in Use
+# Check nginx config
+kubectl exec -n media-app $POD_NAME -- cat /etc/nginx/conf.d/default.conf
 
-**Problem**: `bind: address already in use` error.
+# Check pod logs
+kubectl logs -n media-app $POD_NAME
+```
 
-**Solution**:
+**Common Causes:**
+- ✗ Docker image not rebuilt after config changes
+- ✗ Kubernetes using cached/old image
+- ✗ Wrong nginx.conf file being copied
+- ✗ Frontend files not copied to correct directory
+- ✗ Browser cache showing old version
 
-1. Find process using the port:
-   ```bash
-   sudo lsof -i :5000  # For port 5000
-   sudo lsof -i :80    # For port 80
-   ```
+**Quick Fixes:**
+```bash
+# Force clear browser cache
+# Press Ctrl+Shift+R or Cmd+Shift+R
 
-2. Kill the process:
-   ```bash
-   sudo kill -9 <PID>
-   ```
+# Force Kubernetes to pull new image
+kubectl rollout restart deployment frontend -n media-app
 
-3. Or change the port in docker-compose.yml:
-   ```yaml
-   ports:
-     - "5001:5000"  # Use 5001 instead of 5000
-   ```
-
-### Issue: Kubernetes Pod Crashes
-
-**Problem**: Pods are in CrashLoopBackOff state.
-
-**Solution**:
-
-1. Check pod status:
-   ```bash
-   kubectl get pods -n devops-app
-   kubectl describe pod <pod-name> -n devops-app
-   ```
-
-2. View pod logs:
-   ```bash
-   kubectl logs <pod-name> -n devops-app
-   kubectl logs <pod-name> -n devops-app --previous
-   ```
-
-3. Check resource limits:
-   ```bash
-   kubectl describe node
-   ```
-
-4. Check if secrets exist:
-   ```bash
-   kubectl get secrets -n devops-app
-   ```
-
-### Issue: Backend Application Won't Start
-
-**Problem**: Backend fails to start with Python errors.
-
-**Solution**:
-
-1. Check Python dependencies:
-   ```bash
-   cd backend
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. Verify Python version:
-   ```bash
-   python --version
-   ```
-
-3. Check for missing environment variables:
-   ```bash
-   cat backend/config.py
-   ```
-
-4. Run migrations if needed:
-   ```bash
-   cd backend
-   python run.py db upgrade
-   ```
-
-### Issue: Frontend Not Loading
-
-**Problem**: Frontend shows 404 or blank page.
-
-**Solution**:
-
-1. Check if frontend service is running:
-   ```bash
-   docker-compose ps frontend
-   curl http://localhost
-   ```
-
-2. Check nginx configuration:
-   ```bash
-   docker-compose exec frontend nginx -t
-   ```
-
-3. Verify static files are in correct location:
-   ```bash
-   docker-compose exec frontend ls -la /usr/share/nginx/html
-   ```
-
-4. Check frontend logs:
-   ```bash
-   docker-compose logs frontend
-   ```
-
-### Issue: Jenkins Build Fails
-
-**Problem**: Jenkins pipeline jobs are failing.
-
-**Solution**:
-
-1. Check Jenkins logs:
-   ```bash
-   sudo tail -f /var/log/jenkins/jenkins.log
-   ```
-
-2. Check if Docker is accessible from Jenkins:
-   ```bash
-   docker ps
-   ```
-
-3. Verify Jenkins has permissions:
-   ```bash
-   sudo usermod -a -G docker jenkins
-   sudo systemctl restart jenkins
-   ```
-
-4. Check Git credentials:
-   - Jenkins Dashboard → Manage Credentials
-   - Verify SSH keys or tokens are correct
-
-5. Check build console output:
-   - Click on failed build
-   - Click "Console Output"
-   - Look for error messages
-
-### Issue: High Memory Usage
-
-**Problem**: System running out of memory.
-
-**Solution**:
-
-1. Check memory usage:
-   ```bash
-   free -h
-   ```
-
-2. Stop unnecessary services:
-   ```bash
-   docker-compose stop jenkins  # If not needed
-   ```
-
-3. Remove unused Docker resources:
-   ```bash
-   docker system prune -a
-   ```
-
-4. Increase swap space:
-   ```bash
-   sudo dd if=/dev/zero of=/swapfile bs=1G count=2
-   sudo chmod 600 /swapfile
-   sudo mkswap /swapfile
-   sudo swapon /swapfile
-   ```
-
-### Issue: SSL Certificate Errors
-
-**Problem**: HTTPS/SSL certificate issues.
-
-**Solution**:
-
-1. Install Certbot for Let's Encrypt:
-   ```bash
-   sudo yum install -y certbot python3-certbot-nginx
-   ```
-
-2. Generate certificate:
-   ```bash
-   sudo certbot certonly --standalone -d your-domain.com
-   ```
-
-3. Update nginx configuration with certificate paths
-
-4. Enable auto-renewal:
-   ```bash
-   sudo systemctl enable certbot-renew.timer
-   sudo systemctl start certbot-renew.timer
-   ```
+# If still not working, delete and recreate
+kubectl delete deployment frontend -n media-app
+kubectl apply -f k8s/frontend/
+```
 
 ---
 
-## Verification and Testing
+### Docker Issues
 
-### Step 1: Verify All Services Are Running
-
+**Problem: Permission denied**
 ```bash
-# Docker Compose
-docker-compose ps
-
-# Kubernetes
-kubectl get all -n devops-app
-
-# System services
-sudo systemctl status docker
-sudo systemctl status jenkins
+# Solution: Use sudo with all Docker commands
+# All Docker commands must be prefixed with 'sudo'
+sudo docker ps
+sudo docker-compose up -d
 ```
 
-### Step 2: Test Backend API
-
-Test basic endpoint:
-
+**Problem: Container won't start**
 ```bash
-curl http://localhost:5000/
+# Check logs
+sudo docker logs <container-name>
+
+# Check if port is in use
+sudo netstat -tulpn | grep <port>
 ```
 
-Test specific routes (adjust based on your API):
+### Kubernetes Issues
 
+**Problem: Pods in CrashLoopBackOff**
 ```bash
-curl http://localhost:5000/api/users
-curl http://localhost:5000/api/health
+# Check pod logs
+kubectl logs <pod-name>
+
+# Describe pod for events
+kubectl describe pod <pod-name>
+
+# Check if images exist
+sudo docker pull saikiranasamwar4/compressor-backend:latest
 ```
 
-### Step 3: Test Frontend
-
-Open browser and verify:
-
-```
-http://your-instance-ip
-```
-
-Ensure:
-- Page loads without errors
-- Static assets load (CSS, JavaScript)
-- Can navigate through pages
-- Forms work correctly
-
-### Step 4: Test Database Connectivity
-
+**Problem: Service not accessible**
 ```bash
-# Through Docker Compose
-docker-compose exec postgres psql -U appuser -d appdb -c "SELECT COUNT(*) FROM information_schema.tables;"
+# Check service
+kubectl get service <service-name>
 
-# Through Kubernetes
-kubectl exec -it -n devops-app <postgres-pod-name> -- psql -U appuser -d appdb -c "\dt"
+# Check endpoints
+kubectl get endpoints <service-name>
+
+# Port forward for testing
+kubectl port-forward service/<service-name> 8080:80
 ```
 
-### Step 5: Test End-to-End Flow
+### MongoDB Connection Issues
 
-1. Log in to frontend (if authentication required)
-2. Perform a database operation (create, read, update, delete)
-3. Verify data is persisted in database
-4. Check logs for errors
-
-### Step 6: Performance Testing
-
-Load test the backend:
-
+**Problem: Backend can't connect to MongoDB**
 ```bash
-# Install Apache Bench
-sudo yum install -y httpd-tools
+# Check MongoDB pod
+kubectl get pods -l app=mongo
 
-# Run load test
-ab -n 1000 -c 10 http://localhost:5000/
+# Check MongoDB logs
+kubectl logs <mongo-pod-name>
+
+# Test connection from backend pod
+kubectl exec -it <backend-pod> -- sh
+nc -zv mongo 27017
 ```
 
-Monitor performance:
+### Jenkins Issues
 
+**Problem: Jenkins won't start**
 ```bash
-# Check system resources during test
-top
-free -h
-iostat -x 1
-```
+# Check Java version
+java -version
 
-### Step 7: Health Check Endpoints
+# Check Jenkins logs
+sudo journalctl -u jenkins -f
 
-Verify application health endpoints:
-
-```bash
-curl -v http://localhost:5000/health
-curl -v http://localhost:5000/api/status
-```
-
-### Step 8: Security Verification
-
-Verify security headers:
-
-```bash
-curl -I http://localhost:5000
-```
-
-Look for:
-- X-Frame-Options
-- X-Content-Type-Options
-- Content-Security-Policy
-- Strict-Transport-Security
-
-### Step 9: Log Verification
-
-Check for error messages in logs:
-
-```bash
-# Docker Compose
-docker-compose logs | grep -i error
-
-# Kubernetes
-kubectl logs -n devops-app --all-containers --tail=100
-```
-
-### Step 10: Monitoring Verification
-
-Verify metrics collection:
-
-1. Prometheus Dashboard: http://your-instance-ip:9090
-   - Check "Targets" section
-   - Verify all endpoints are "UP"
-
-2. Grafana Dashboard: http://your-instance-ip:3000
-   - View configured dashboards
-   - Check metric values updating in real-time
-
----
-
-## Maintenance and Best Practices
-
-### Regular Backups
-
-Backup database regularly:
-
-```bash
-docker-compose exec postgres pg_dump -U appuser appdb > backup_$(date +%Y%m%d_%H%M%S).sql
-```
-
-Backup volumes:
-
-```bash
-docker-compose down
-tar -czf docker_volumes_backup_$(date +%Y%m%d_%H%M%S).tar.gz /var/lib/docker/volumes/
-docker-compose up -d
-```
-
-### Update Dependencies
-
-Update Python packages periodically:
-
-```bash
-cd backend
-source venv/bin/activate
-pip install --upgrade pip
-pip list --outdated
-pip install --upgrade <package-name>
-```
-
-Update system packages:
-
-```bash
-sudo yum update -y
-```
-
-### Monitor Disk Space
-
-Check disk usage:
-
-```bash
+# Check disk space
 df -h
-du -sh /var/lib/docker/
 ```
 
-Clean up Docker:
+### EKS Issues
 
+**Problem: kubectl can't connect to cluster**
 ```bash
-docker system prune -a --volumes
+# Update kubeconfig
+aws eks update-kubeconfig --name compressor-cluster --region us-east-1
+
+# Verify connection
+kubectl cluster-info
+
+# Check AWS credentials
+aws sts get-caller-identity
 ```
 
-### Security Hardening
+### SonarQube Issues
 
-1. Keep systems updated
-2. Use strong passwords
-3. Implement firewall rules
-4. Use SSH keys instead of passwords
-5. Enable audit logging
-6. Regularly scan for vulnerabilities
-7. Use secrets management (AWS Secrets Manager, HashiCorp Vault)
-
-### Scaling Considerations
-
-For production scaling:
-
-1. Use Kubernetes for orchestration
-2. Implement horizontal pod autoscaling:
-
+**Problem: SonarQube won't start**
 ```bash
-kubectl autoscale deployment backend -n devops-app --min=2 --max=5
+# Check system limits
+ulimit -n
+ulimit -u
+
+# Check kernel parameters
+sysctl vm.max_map_count
+
+# Check logs
+tail -f /opt/sonarqube/logs/sonar.log
 ```
 
-3. Use managed databases instead of containers
-4. Implement caching (Redis)
-5. Use CDN for static content
-6. Load balance traffic (ELB/ALB)
+### Application Issues
+
+**Problem: Application flickering or infinite loading loop**
+
+This occurs when the frontend JavaScript has hardcoded API URLs that don't work in the deployed environment.
+
+**Symptoms:**
+- Page loads but keeps redirecting
+- Authentication checks fail repeatedly
+- Browser console shows failed network requests to localhost
+
+**Root Cause:**
+Frontend JavaScript files contain hardcoded `http://localhost:5000` API URLs which don't work when deployed to Kubernetes.
+
+**Solution:**
+```bash
+# This has been fixed in v1.1+ - all API URLs now use relative paths
+# If you're still experiencing this issue, ensure you're using the latest image:
+
+# 1. Check current deployment image
+kubectl get deployment frontend -n media-app -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+# 2. If not v1.1+, update to latest
+kubectl set image deployment/frontend frontend=saikiranasamwar4/compressor-frontend:v1.1 -n media-app
+
+# 3. Verify rollout
+kubectl rollout status deployment/frontend -n media-app
+```
+
+**Problem: 502 Bad Gateway**
+```bash
+# Check if backend is running
+curl http://localhost:5000/api/health
+
+# Check nginx logs (in Docker)
+sudo docker logs compressorr-frontend
+
+# Check backend logs
+sudo docker logs compressorr-backend
+```
+
+**Problem: File upload fails**
+```bash
+# Check upload directory permissions
+ls -la uploads/
+
+# Create if missing
+sudo mkdir -p uploads/profiles
+sudo chmod -R 755 uploads
+```
+
+### Network Issues
+
+**Problem: Can't access from browser**
+```bash
+# Check security group rules
+aws ec2 describe-security-groups
+
+# Check if service is listening
+sudo netstat -tulpn | grep <port>
+
+# Test from EC2
+curl http://localhost:<port>
+```
 
 ---
 
 ## Quick Reference Commands
 
+### Docker
 ```bash
-# Docker Compose Commands
-docker-compose up -d              # Start all services
-docker-compose down               # Stop all services
-docker-compose logs -f            # View logs
-docker-compose ps                 # List services
-docker-compose exec <service> bash # Access service
+sudo docker ps                              # List running containers
+sudo docker logs <container>                # View logs
+sudo docker exec -it <container> sh         # Shell into container
+sudo docker-compose up -d                   # Start services
+sudo docker-compose down                    # Stop services
+sudo docker system prune -a                 # Clean up
+```
 
-# Kubernetes Commands
-kubectl get all -n devops-app     # List all resources
-kubectl logs <pod> -n devops-app  # View pod logs
-kubectl describe pod <pod> -n devops-app # Detailed pod info
-kubectl port-forward <pod> 8000:5000 # Port forwarding
-kubectl apply -f <file>           # Apply manifest
-kubectl delete -f <file>          # Delete resource
+### Kubernetes
+```bash
+kubectl get all                        # List all resources
+kubectl get pods -o wide               # Detailed pod info
+kubectl logs -f <pod>                  # Follow logs
+kubectl exec -it <pod> -- sh           # Shell into pod
+kubectl delete pod <pod>               # Delete pod
+kubectl rollout restart deployment/<name>  # Restart deployment
+```
 
-# Useful Docker Commands
-docker ps                         # List running containers
-docker images                     # List images
-docker build -t name:tag .        # Build image
-docker push registry/name:tag     # Push image
-docker inspect <container>        # Get container details
+### AWS
+```bash
+aws eks list-clusters                  # List EKS clusters
+aws eks update-kubeconfig --name <cluster>  # Update kubeconfig
+aws ec2 describe-instances             # List EC2 instances
+eksctl get cluster                     # Get cluster info
+```
 
-# System Commands
-top                              # Monitor processes
-free -h                          # Check memory
-df -h                            # Check disk space
-sudo systemctl status <service>  # Check service status
-sudo journalctl -u <service> -f  # View service logs
+### System
+```bash
+sudo systemctl status <service>        # Check service status
+sudo systemctl restart <service>       # Restart service
+sudo journalctl -u <service> -f        # View service logs
+df -h                                  # Check disk space
+free -h                                # Check memory
+top                                    # Monitor processes
 ```
 
 ---
 
-## Support and Documentation
+## Project Structure
 
-For more information, refer to:
-
-- [Docker Documentation](https://docs.docker.com)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Kubernetes Documentation](https://kubernetes.io/docs/)
-- [Flask Documentation](https://flask.palletsprojects.com/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Jenkins Documentation](https://www.jenkins.io/doc/)
-- [Prometheus Documentation](https://prometheus.io/docs/)
-- [Grafana Documentation](https://grafana.com/docs/)
+```
+Compressorr/
+├── backend/
+│   ├── src/
+│   │   ├── server.js              # Main server file
+│   │   ├── routes/                # API routes
+│   │   ├── controllers/           # Business logic
+│   │   ├── models/                # MongoDB models
+│   │   ├── middleware/            # Auth & validation
+│   │   └── config/                # Configuration files
+│   └── package.json
+├── frontend/
+│   ├── *.html                     # Frontend pages
+│   ├── *.js                       # Client-side scripts
+│   ├── styles.css                 # Styles
+│   └── nginx.conf                 # Nginx configuration
+├── Dockerfiles/
+│   ├── backend.Dockerfile
+│   ├── frontend.Dockerfile
+│   └── nginx.conf
+├── k8s/
+│   ├── backend/                   # Backend K8s manifests
+│   ├── frontend/                  # Frontend K8s manifests
+│   ├── mongo/                     # MongoDB K8s manifests
+│   └── monitoring/                # Prometheus & Grafana
+├── monitoring/
+│   ├── prometheus.yml
+│   └── grafana-dashboards/
+├── ansible/                       # Ansible playbooks
+├── docker-compose.yml             # Docker Compose config
+├── Jenkinsfile                    # CI/CD pipeline
+├── sonar-project.properties       # SonarQube config
+└── .env                           # Environment variables
+```
 
 ---
 
-## Conclusion
+## License
 
-You now have a complete deployment setup for your Python DevOps application on Amazon Linux 2023. Follow these steps carefully, and your application should be running smoothly with proper monitoring, CI/CD, and containerization in place.
+MIT
 
-For troubleshooting and advanced configurations, refer to the individual tool documentation and the troubleshooting section above.
+## Support
 
----
-
-**Last Updated**: February 2, 2026
-**Version**: 1.0
-**Maintainer**: DevOps Team
+For issues and questions, please open an issue in the repository.

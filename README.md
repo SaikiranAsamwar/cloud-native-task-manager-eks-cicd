@@ -209,13 +209,23 @@ psql -h localhost -U sonarqube -d sonarqube -c "SELECT 1;"
 ### 10.1 Install Jenkins
 
 ```bash
-# Add Jenkins repository
-curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+# Remove broken Jenkins repo & key (important)
+sudo rm -f /etc/apt/sources.list.d/jenkins.list
+sudo rm -f /usr/share/keyrings/jenkins-keyring.asc
 
-echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+# Download & install the correct Jenkins GPG key
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key \
+| sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
 
-# Update package list
-sudo apt-get update
+# This is the new official Jenkins key (required)
+# Add Jenkins repository (signed properly)
+
+echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+https://pkg.jenkins.io/debian-stable binary/" \
+| sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+#Update package list
+sudo apt update
 
 # Install Jenkins
 sudo apt-get install -y jenkins

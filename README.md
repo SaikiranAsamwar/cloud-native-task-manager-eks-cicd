@@ -1,6 +1,6 @@
-# Compressorr - Media Conversion & Compression Platform
+# Task Manager - Python DevOps Project
 
-A full-stack Node.js application for image and PDF conversion, compression, and restoration. Built with Express, MongoDB, and containerized for production deployment on AWS EKS.
+A full-stack Flask application for task management with PostgreSQL backend, Nginx frontend, and containerized deployment on AWS EC2 with Ubuntu 24.04 LTS. Built with Docker, Kubernetes-ready, and complete CI/CD pipeline.
 
 ## 📋 Table of Contents
 
@@ -10,7 +10,7 @@ A full-stack Node.js application for image and PDF conversion, compression, and 
 - [Step 1: EC2 Instance Setup](#step-1-ec2-instance-setup)
 - [Step 2: Install Docker](#step-2-install-docker)
 - [Step 3: Install Docker Compose](#step-3-install-docker-compose)
-- [Step 4: Install Node.js](#step-4-install-nodejs)
+- [Step 4: Install Python](#step-4-install-python)
 - [Step 5: Install AWS CLI](#step-5-install-aws-cli)
 - [Step 6: Install kubectl](#step-6-install-kubectl)
 - [Step 7: Install eksctl](#step-7-install-eksctl)
@@ -39,9 +39,10 @@ A full-stack Node.js application for image and PDF conversion, compression, and 
 ## Architecture Overview
 
 ```
-├── Backend (Node.js + Express) - Port 5000
+AWS EC2 Instance (Ubuntu 24.04 LTS)
+├── Backend (Flask + Python) - Port 8888
 ├── Frontend (HTML/CSS/JS + Nginx) - Port 80
-├── Database (MongoDB) - Port 27017
+├── Database (PostgreSQL) - Port 5432
 ├── Container Registry (DockerHub)
 ├── Orchestration (Amazon EKS)
 ├── CI/CD (Jenkins)
@@ -74,13 +75,13 @@ A full-stack Node.js application for image and PDF conversion, compression, and 
 ### 1.1 Launch EC2 Instance
 
 **Instance Configuration:**
-- **AMI:** Amazon Linux 2023
-- **Instance Type:** t3.large (minimum for running Jenkins + SonarQube)
+- **AMI:** Ubuntu Server 24.04 LTS
+- **Instance Type:** t3.large (2 vCPU, 8 GB RAM minimum)
 - **Storage:** 50 GB gp3
 - **Security Group Ports:**
   - 22 (SSH)
   - 80 (Frontend)
-  - 5000 (Backend)
+  - 8888 (Backend)
   - 8080 (Jenkins)
   - 9000 (SonarQube)
   - 9090 (Prometheus)
@@ -90,20 +91,21 @@ A full-stack Node.js application for image and PDF conversion, compression, and 
 
 ```bash
 # Set permissions for your key
-sudo chmod 400 your-key.pem
+chmod 400 your-key.pem
 
 # Connect via SSH
-sudo ssh -i your-key.pem ec2-user@your-ec2-public-ip
+ssh -i your-key.pem ubuntu@your-ec2-public-ip
 ```
 
 ### 1.3 Initial System Update
 
 ```bash
 # Update all packages
-sudo dnf update -y
+sudo apt-get update
+sudo apt-get upgrade -y
 
 # Install basic utilities
-sudo dnf install -y git wget curl tar unzip vim
+sudo apt-get install -y git wget curl tar unzip vim htop net-tools
 ```
 
 ---
@@ -111,19 +113,33 @@ sudo dnf install -y git wget curl tar unzip vim
 ## Step 2: Install Docker
 
 ```bash
+# Add Docker's official GPG key
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Setup Docker repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Update package list
+sudo apt-get update
+
 # Install Docker
-sudo dnf install -y docker
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 # Start and enable Docker service
 sudo systemctl start docker
 sudo systemctl enable docker
 
-# Note: Running Docker with sudo is required in this setup
-# All Docker commands will use sudo
+# Add current user to docker group (to avoid using sudo)
+sudo usermod -aG docker $USER
+
+# Apply group changes
+newgrp docker
 
 # Verify installation
-sudo docker --version
-sudo docker ps
+docker --version
+docker ps
 ```
 
 ---
@@ -131,30 +147,33 @@ sudo docker ps
 ## Step 3: Install Docker Compose
 
 ```bash
-# Download Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+# Download Docker Compose standalone binary
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 
 # Make it executable
 sudo chmod +x /usr/local/bin/docker-compose
 
+# Create symlink
+sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
 # Verify installation
-sudo docker-compose --version
+docker-compose --version
 ```
 
 ---
 
-## Step 4: Install Node.js
+## Step 4: Install Python
 
 ```bash
-# Install Node.js 18
-sudo dnf install -y nodejs
+# Install Python and pip
+sudo apt-get install -y python3 python3-pip python3-venv python3-dev
 
 # Verify installation
-sudo node --version
-sudo npm --version
+python3 --version
+pip3 --version
 
-# Install global packages
-sudo npm install -g pm2
+# Install Python development tools
+sudo apt-get install -y build-essential libssl-dev libffi-dev
 ```
 
 ---
@@ -220,11 +239,16 @@ eksctl version
 ## Step 8: Install Java
 
 ```bash
-# Install Amazon Corretto 17 (OpenJDK)
-sudo dnf install -y java-17-amazon-corretto
+# Install OpenJDK 17
+sudo apt-get install -y openjdk-17-jdk openjdk-17-jre
 
-# Verify
+# Verify installation
 java -version
+javac -version
+
+# Set JAVA_HOME environment variable
+echo "JAVA_HOME=$(which java)" >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ---
@@ -233,10 +257,7 @@ java -version
 
 ```bash
 # Install PostgreSQL 15
-sudo dnf install -y postgresql15-server
-
-# Initialize database
-sudo postgresql-setup --initdb
+sudo apt-get install -y postgresql postgresql-contrib postgresql-15
 
 # Start and enable PostgreSQL
 sudo systemctl start postgresql
@@ -244,37 +265,18 @@ sudo systemctl enable postgresql
 
 # Check status
 sudo systemctl status postgresql
-```
 
-### Configure PostgreSQL for SonarQube
-
-```bash
-# Switch to postgres user
-sudo -u postgres psql
-
-# In PostgreSQL prompt, run these commands:
+# Switch to postgres user and create SonarQube database
+sudo -u postgres psql << EOF
 CREATE USER sonarqube WITH ENCRYPTED PASSWORD 'sonar123';
 CREATE DATABASE sonarqube OWNER sonarqube;
 GRANT ALL PRIVILEGES ON DATABASE sonarqube TO sonarqube;
 \q
-
-# Edit PostgreSQL authentication config
-sudo nano /var/lib/pgsql/data/pg_hba.conf
-```
-
-**Add this line before the other entries:**
-```
-host    sonarqube       sonarqube       127.0.0.1/32            md5
-```
-
-**Restart PostgreSQL:**
-```bash
-sudo systemctl restart postgresql
+EOF
 
 # Test connection
-psql -h localhost -U sonarqube -d sonarqube
+psql -h localhost -U sonarqube -d sonarqube -c "SELECT 1;"
 # Enter password: sonar123
-# Type \q to exit
 ```
 
 ---
@@ -285,15 +287,17 @@ psql -h localhost -U sonarqube -d sonarqube
 
 ```bash
 # Add Jenkins repository
-sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
 
-# Import Jenkins key
-sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+# Update package list
+sudo apt-get update
 
 # Install Jenkins
-sudo dnf install -y jenkins
+sudo apt-get install -y jenkins
 
-# Start Jenkins
+# Start and enable Jenkins
 sudo systemctl start jenkins
 sudo systemctl enable jenkins
 
@@ -760,22 +764,19 @@ sudo systemctl start prometheus
 
 ```bash
 # Add Grafana repository
-sudo tee /etc/yum.repos.d/grafana.repo << 'EOF'
-[grafana]
-name=grafana
-baseurl=https://rpm.grafana.com
-repo_gpgcheck=1
-enabled=1
-gpgcheck=1
-gpgkey=https://rpm.grafana.com/gpg.key
-sslverify=1
-sslcacert=/etc/pki/tls/certs/ca-bundle.crt
-EOF
+sudo apt-get install -y software-properties-common
+sudo add-apt-repository "deb https://packages.grafana.com/oss/deb stable main"
+
+# Add Grafana GPG key
+sudo wget -q -O /usr/share/keyrings/grafana.key https://packages.grafana.com/gpg.key
+
+# Update package list
+sudo apt-get update
 
 # Install Grafana
-sudo dnf install -y grafana
+sudo apt-get install -y grafana
 
-# Start Grafana
+# Start and enable Grafana
 sudo systemctl start grafana-server
 sudo systemctl enable grafana-server
 
@@ -818,23 +819,23 @@ sudo systemctl status grafana-server
 4. Select Prometheus data source
 5. Click **Import**
 
-**Import Custom Compressorr Dashboard (if available):**
+**Import Custom Task Manager Dashboard (if available):**
 1. Click **+** → **Import**
-2. Upload `monitoring/grafana-dashboards/compressorr-dashboard.json` from your project
+2. Upload `monitoring/grafana-dashboard.json` from your project
 3. Select Prometheus data source
 4. Click **Import**
 
-### 13.5 Create Simple Dashboard for Compressorr
+### 13.5 Create Simple Dashboard for Task Manager
 
 If custom dashboard doesn't exist, create one:
 
 1. Click **+** → **Dashboard** → **Add new panel**
 2. Query examples:
    - HTTP Request Rate: `rate(http_requests_total[5m])`
-   - Memory Usage: `nodejs_heap_size_used_bytes`
-   - Active Connections: `http_requests_active`
+   - Memory Usage: `process_resident_memory_bytes`
+   - Database Connections: `pg_stat_activity_count`
 3. Customize visualization
-4. Click **Save** → Name: `Compressorr Monitoring`
+4. Click **Save** → Name: `Task Manager Monitoring`
 
 ---
 
@@ -846,40 +847,54 @@ If custom dashboard doesn't exist, create one:
 
 ```bash
 # Create application directory
-sudo mkdir -p /opt/compressorr
-sudo cd /opt/compressorr
+mkdir -p ~/applications
+cd ~/applications
 
 # Clone your repository
-sudo git clone <your-repo-url> .
+git clone <your-repo-url> taskmanager
+cd taskmanager
 ```
 
 ### 14.2 Configure Environment Variables
 
 ```bash
-# Edit .env file
-sudo nano .env
-```
+# Create .env file
+cat > .env << EOF
+# Flask Configuration
+FLASK_ENV=production
+SECRET_KEY=7a8f9d2e4c6b1a3e5d7f9b2c4e6a8d0f1c3e5a7b9d1f3e5c7a9b1d3f5e7a9c1b
 
-**Update the following values:**
-```bash
-JWT_SECRET=your-super-secret-jwt-key-here-change-this
-SESSION_SECRET=your-super-secret-session-key-here-change-this
-GOOGLE_CLIENT_ID=your-google-client-id-if-using-oauth
-GOOGLE_CLIENT_SECRET=your-google-client-secret-if-using-oauth
-GOOGLE_CALLBACK_URL=http://your-domain-or-ip:5000/auth/google/callback
-MONGO_URI=mongodb://mongodb:27017/filetool
-PORT=5000
-NODE_ENV=production
+# Database Configuration
+POSTGRES_USER=taskmanager
+POSTGRES_PASSWORD=P@ssw0rd!2026SecureDB
+POSTGRES_DB=taskmanager_db
+DATABASE_URL=postgresql://taskmanager:P@ssw0rd!2026SecureDB@postgres:5432/taskmanager_db
+
+# Backend Configuration
+BACKEND_PORT=8888
+BACKEND_HOST=0.0.0.0
+
+# Frontend Configuration
+FRONTEND_PORT=80
+EOF
+
+# Secure the .env file
+chmod 600 .env
 ```
 
 ### 14.3 Create Required Directories
 
 ```bash
-# Create upload directories
-sudo mkdir -p uploads/profiles
+# Create volume directories for persistent data
+mkdir -p /var/lib/taskmanager/postgres-data
+mkdir -p /var/lib/taskmanager/backend-instance
+mkdir -p /var/log/taskmanager/backend
+mkdir -p /var/log/taskmanager/frontend
 
-# Set permissions
-sudo chmod -R 755 uploads
+# Set proper permissions
+sudo chown -R 999:999 /var/lib/taskmanager/postgres-data
+sudo chown -R 1000:1000 /var/lib/taskmanager/backend-instance
+sudo chmod -R 755 /var/lib/taskmanager
 ```
 
 ---
@@ -890,54 +905,71 @@ sudo chmod -R 755 uploads
 
 ```bash
 # Build backend image
-sudo docker build -f Dockerfiles/backend.Dockerfile -t saikiranasamwar4/compressor-backend:latest ./backend
+docker build -f backend/Dockerfile -t taskmanager-backend:latest ./backend
 
 # Build frontend image
-sudo docker build -f Dockerfiles/frontend.Dockerfile -t saikiranasamwar4/compressor-frontend:latest ./frontend
+docker build -f frontend/Dockerfile -t taskmanager-frontend:latest ./frontend
+
+# Verify images
+docker images | grep taskmanager
 ```
 
-### 15.2 Push Images to DockerHub
+### 15.2 Run with Docker Compose
 
 ```bash
-# Login to DockerHub
-sudo docker login
+# Start all services in detached mode
+docker-compose up -d
 
-# Push backend
-sudo docker push saikiranasamwar4/compressor-backend:latest
-
-# Push frontend
-sudo docker push saikiranasamwar4/compressor-frontend:latest
-```
-
-### 15.3 Run with Docker Compose
-
-```bash
-# Start all services
-sudo docker-compose up -d
+# View container status
+docker-compose ps
 
 # View logs
-sudo docker-compose logs -f
+docker-compose logs -f
 
-# Check running containers
-sudo docker ps
-
-# Stop services
-sudo docker-compose down
+# View specific service logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+docker-compose logs -f postgres
 ```
 
-### 15.4 Verify Application
+### 15.3 Verify Application
 
 ```bash
 # Check backend health
-curl http://localhost:5000/api/health
+curl -X GET http://localhost:8888/health
+
+# Check database connectivity
+curl -X GET http://localhost:8888/api/status
 
 # Access frontend
-curl http://localhost:8080
+curl http://localhost/
+
+# List running containers
+docker ps
 ```
 
 **Access in browser:**
-- Frontend: `http://your-ec2-public-ip:8080`
-- Backend API: `http://your-ec2-public-ip:5000`
+- Frontend: `http://your-ec2-public-ip/`
+- Backend API: `http://your-ec2-public-ip:8888`
+
+### 15.4 Manage Containers
+
+```bash
+# Stop services
+docker-compose stop
+
+# Start services
+docker-compose start
+
+# Restart services
+docker-compose restart
+
+# Stop and remove containers (keep volumes)
+docker-compose down
+
+# Complete cleanup (removes everything including volumes)
+docker-compose down -v
+```
 
 ---
 
@@ -947,178 +979,142 @@ curl http://localhost:8080
 
 ```bash
 # Create EKS cluster (takes 15-20 minutes)
-sudo eksctl create cluster \
-  --name compressor-cluster \
+eksctl create cluster \
+  --name taskmanager-cluster \
   --region us-east-1 \
-  --nodegroup-name compressor-nodes \
+  --nodegroup-name taskmanager-nodes \
   --node-type t3.medium \
   --nodes 2 \
   --nodes-min 1 \
   --nodes-max 3 \
   --managed
 
-# Verify cluster
+# Verify cluster creation
 kubectl get nodes
+kubectl cluster-info
 ```
 
 ### 16.2 Create Namespace
 
 ```bash
 # Create namespace
-kubectl create namespace media-app
+kubectl create namespace taskmanager
 
 # Set as default
-kubectl config set-context --current --namespace=media-app
-```
-
-### 16.3 Create MongoDB Secret
-
-```bash
-# Create secret for MongoDB
-kubectl apply -f k8s/mongo/mongo-secret.yaml
+kubectl config set-context --current --namespace=taskmanager
 
 # Verify
-kubectl get secrets
+kubectl get namespaces
 ```
 
-### 16.4 Deploy MongoDB
+### 16.3 Create Kubernetes Secrets
 
 ```bash
-# Deploy MongoDB StatefulSet
-kubectl apply -f k8s/mongo/mongo-statefulset.yaml
+# Create secret for PostgreSQL
+kubectl apply -f k8s/secrets.yaml
 
-# Deploy MongoDB Service
-kubectl apply -f k8s/mongo/mongo-service.yaml
+# Verify secrets
+kubectl get secrets -n taskmanager
+```
+
+### 16.4 Deploy PostgreSQL
+
+```bash
+# Create PostgreSQL PVC
+kubectl apply -f k8s/postgres-pvc.yaml
+
+# Deploy PostgreSQL
+kubectl apply -f k8s/postgres-deployment.yaml
 
 # Check status
-kubectl get statefulsets
-kubectl get pods
+kubectl get statefulsets -n taskmanager
+kubectl get pods -n taskmanager
+
+# Wait for PostgreSQL to be ready
+kubectl wait --for=condition=ready pod -l app=postgres --timeout=300s -n taskmanager
 ```
 
 ### 16.5 Deploy Backend
 
 ```bash
 # Deploy backend
-kubectl apply -f k8s/backend/backend-deployment.yaml
-kubectl apply -f k8s/backend/backend-service.yaml
+kubectl apply -f k8s/backend-deployment.yaml
+kubectl apply -f k8s/backend-service.yaml
 
 # Check status
-kubectl get deployments
-kubectl get pods
-kubectl get services
+kubectl get deployments -n taskmanager
+kubectl get pods -n taskmanager
+kubectl get svc -n taskmanager
 ```
 
 ### 16.6 Deploy Frontend
 
 ```bash
 # Deploy frontend
-kubectl apply -f k8s/frontend/frontend-deployment.yaml
-kubectl apply -f k8s/frontend/frontend-service.yaml
+kubectl apply -f k8s/frontend-deployment.yaml
+kubectl apply -f k8s/ingress.yaml
 
 # Check all resources
-kubectl get all
+kubectl get all -n taskmanager
 ```
 
 ### 16.7 Access Application
 
 ```bash
-# Get LoadBalancer URL for frontend
-kubectl get service frontend-service
+# Get service information
+kubectl get svc -n taskmanager
 
-# Note the EXTERNAL-IP
-# Access: http://<EXTERNAL-IP>
+# For NodePort service
+kubectl get nodes -o wide
+# Access: http://<node-ip>:<node-port>
+
+# For LoadBalancer
+kubectl get svc frontend -n taskmanager
+# Access: http://<external-ip>
 ```
 
-### 16.8 Manual Kubernetes Deployment (Alternative to CI/CD)
-
-If you want to deploy manually without Jenkins, use the provided deployment script:
+### 16.8 Kubernetes Cluster Management
 
 ```bash
-# Make script executable
-sudo chmod +x scripts/deploy-k8s.sh
+# View cluster information
+kubectl cluster-info
+kubectl get nodes -o wide
 
-# Run deployment
-sudo ./scripts/deploy-k8s.sh
-```
-
-**Or deploy manually step-by-step:**
-
-```bash
-# 1. Update kubeconfig
-aws eks update-kubeconfig --name compressor-cluster --region us-east-1
-
-# 2. Create namespace
-kubectl apply -f k8s/namespace.yaml
-
-# 3. Deploy MongoDB
-kubectl apply -f k8s/mongo/ -n media-app
-kubectl wait --for=condition=ready pod -l app=mongo -n media-app --timeout=300s
-
-# 4. Deploy Backend
-kubectl apply -f k8s/backend/ -n media-app
-kubectl wait --for=condition=ready pod -l app=backend -n media-app --timeout=300s
-
-# 5. Deploy Frontend
-kubectl apply -f k8s/frontend/ -n media-app
-kubectl wait --for=condition=ready pod -l app=frontend -n media-app --timeout=300s
-
-# 6. Deploy Monitoring
-kubectl apply -f k8s/monitoring/ -n media-app
-
-# 7. Verify deployment
-kubectl get all -n media-app
-kubectl get svc -n media-app
-```
-
-### 16.9 EKS Cluster Management
-
-```bash
-# View all resources
-kubectl get all -n media-app
+# View all resources in namespace
+kubectl get all -n taskmanager
 
 # View logs
-kubectl logs <pod-name> -n media-app
-kubectl logs -f <pod-name> -n media-app  # Follow logs
-kubectl logs -l app=backend -n media-app  # All backend pods
+kubectl logs <pod-name> -n taskmanager
+kubectl logs -f <pod-name> -n taskmanager  # Follow logs
+kubectl logs -l app=backend -n taskmanager  # All backend pods
 
 # Describe resources
-kubectl describe pod <pod-name> -n media-app
-kubectl describe service <service-name> -n media-app
+kubectl describe pod <pod-name> -n taskmanager
+kubectl describe svc <service-name> -n taskmanager
 
 # Scale deployment
-kubectl scale deployment backend --replicas=3 -n media-app
+kubectl scale deployment backend --replicas=3 -n taskmanager
 
 # Update image
-kubectl set image deployment/backend backend=saikiranasamwar4/compressor-backend:v2 -n media-app
-kubectl rollout status deployment/backend -n media-app
+kubectl set image deployment/backend backend=taskmanager-backend:v2 -n taskmanager
+kubectl rollout status deployment/backend -n taskmanager
 
 # Rollback deployment
-kubectl rollout undo deployment/backend -n media-app
+kubectl rollout undo deployment/backend -n taskmanager
 
-# Restart deployment (without image change)
-kubectl rollout restart deployment/backend -n media-app
+# Delete resources
+kubectl delete -f k8s/frontend-deployment.yaml -n taskmanager
 
-# Delete specific resources
-kubectl delete -f k8s/frontend/ -n media-app
+# Cleanup entire namespace
+kubectl delete namespace taskmanager
 
-# Cleanup everything
-sudo chmod +x scripts/cleanup-k8s.sh
-sudo ./scripts/cleanup-k8s.sh
-
-# Delete cluster (complete cleanup)
-eksctl delete cluster --name compressor-cluster --region us-east-1
+# Delete cluster
+eksctl delete cluster --name taskmanager-cluster --region us-east-1
 ```
-
-**Helper Scripts Available:**
-- `scripts/deploy-k8s.sh` - Automated deployment
-- `scripts/rollback-k8s.sh` - Rollback to previous version
-- `scripts/cleanup-k8s.sh` - Remove all resources
-- `scripts/debug-frontend.sh` - Debug frontend issues
-- `scripts/rebuild-frontend.sh` - Rebuild and redeploy frontend
 
 ---
 
-## Step 17: Setup CI/CD Pipeline
+## Step 17: Setup CI/CD Pipeline with Jenkins
 
 ### 17.1 Understanding the Jenkinsfile
 
@@ -1129,16 +1125,9 @@ The project includes a `Jenkinsfile` that defines the complete CI/CD pipeline wi
 2. **SonarQube Analysis** - Code quality and security scan
 3. **Quality Gate Check** - Verify code meets quality standards
 4. **Build & Push Docker Images** - Build backend and frontend containers and push to DockerHub
-5. **Apply Kubernetes Manifests** - Deploy/update all K8s resources (MongoDB, Backend, Frontend, Monitoring)
+5. **Apply Kubernetes Manifests** - Deploy/update all K8s resources (PostgreSQL, Backend, Frontend, Monitoring)
 6. **Update Container Images** - Update deployments with new Docker images
 7. **Post-Deployment Health Check** - Verify all pods and services are healthy
-
-**Kubernetes Resources Deployed:**
-- Namespace (`media-app`)
-- MongoDB (StatefulSet, Service, Secrets)
-- Backend (Deployment, Service)
-- Frontend (Deployment, Service with LoadBalancer)
-- Monitoring (Prometheus, Grafana with ConfigMaps)
 
 **Prerequisites:**
 - All credentials configured (DockerHub, AWS, GitHub, SonarQube)
@@ -1146,45 +1135,21 @@ The project includes a `Jenkinsfile` that defines the complete CI/CD pipeline wi
 - EKS cluster running and accessible
 - kubectl configured with EKS cluster access
 
-### 17.2 Review Jenkinsfile Configuration
-
-Before creating the pipeline, review your `Jenkinsfile`:
-
-```bash
-# Open and review the Jenkinsfile
-cat Jenkinsfile
-```
-
-**Key Environment Variables in Jenkinsfile:**
-```groovy
-environment {
-    DOCKERHUB_USERNAME = 'saikiranasamwar4'  // Update with your username
-    DOCKERHUB_BACKEND  = "${DOCKERHUB_USERNAME}/compressor-backend"
-    DOCKERHUB_FRONTEND = "${DOCKERHUB_USERNAME}/compressor-frontend"
-    
-    AWS_REGION  = 'us-east-1'  // Your AWS region
-    EKS_CLUSTER = 'compressor-cluster'  // Your EKS cluster name
-    NAMESPACE   = 'media-app'  // Kubernetes namespace
-}
-```
-
-**Update these values** if needed to match your configuration.
-
-### 17.3 Create Jenkins Pipeline Job
+### 17.2 Create Jenkins Pipeline Job
 
 1. Open Jenkins UI: `http://your-ec2-public-ip:8080`
 2. Click **New Item** on the left sidebar
-3. Enter name: `Compressorr-Deploy`
-4. Select **Pipeline** (scroll down if needed)
+3. Enter name: `TaskManager-Deploy`
+4. Select **Pipeline**
 5. Click **OK**
 
-### 17.4 Configure General Settings
+### 17.3 Configure General Settings
 
 **In the pipeline configuration page:**
 
 1. **Description:** (Optional)
    ```
-   CI/CD pipeline for Compressorr application - builds Docker images and deploys to EKS
+   CI/CD pipeline for Task Manager application - builds Docker images and deploys to EKS
    ```
 
 2. **Discard old builds:** (Recommended)
@@ -1192,7 +1157,7 @@ environment {
    - Strategy: Log Rotation
    - Max # of builds to keep: `10`
 
-### 17.5 Configure Build Triggers
+### 17.4 Configure Build Triggers
 
 **Enable GitHub Webhook:**
 1. Under **Build Triggers** section
@@ -1202,7 +1167,7 @@ environment {
 **Poll SCM (Alternative):**
 - If webhook doesn't work, use: `H/5 * * * *` (checks every 5 minutes)
 
-### 17.6 Configure Pipeline Definition
+### 17.5 Configure Pipeline Definition
 
 **Pipeline Section:**
 
@@ -1212,7 +1177,7 @@ environment {
 
 3. **Repository URL:** Enter your GitHub repository URL
    ```
-   https://github.com/your-username/Compressorr.git
+   https://github.com/your-username/Python-DevOps.git
    ```
 
 4. **Credentials:**
@@ -1220,144 +1185,80 @@ environment {
    - If private repo: Select **github-credentials** (configured in Step 10.4)
 
 5. **Branches to build:**
-   - Branch Specifier: `*/main`
-   - Or use `*/master` if that's your default branch
+   - Branch Specifier: `*/main` or `*/master`
 
 6. **Script Path:** `Jenkinsfile`
-   - This tells Jenkins where to find the pipeline script
 
-7. **Lightweight checkout:** ☑ Check this (faster checkout)
+7. **Lightweight checkout:** ☑ Check this
 
-### 17.7 Add Pipeline Parameters (Optional)
-
-For more control, add build parameters:
-
-1. Check ☑ **This project is parameterized**
-2. Add parameters:
-
-**String Parameter 1:**
-- Name: `DOCKER_TAG`
-- Default Value: `latest`
-- Description: `Docker image tag to build and deploy`
-
-**Choice Parameter:**
-- Name: `DEPLOY_ENV`
-- Choices: `production`, `staging`, `dev`
-- Description: `Target environment`
-
-**Boolean Parameter:**
-- Name: `RUN_SONAR`
-- Default: `true`
-- Description: `Run SonarQube code analysis`
-
-### 17.8 Save and Verify Configuration
+### 17.6 Save Configuration
 
 1. Click **Save** at the bottom
-2. You'll be redirected to the pipeline dashboard
-3. Verify all settings are correct
+2. Verify all settings are correct
 
-### 17.9 Run the Pipeline (First Build)
+### 17.7 Run the Pipeline (First Build)
 
 **Trigger Manual Build:**
 
 1. Click **Build Now** on the left sidebar
-2. A build will appear under **Build History**
-3. Click on **#1** (build number)
-4. Click **Console Output** to view real-time logs
+2. Click on **#1** (build number)
+3. Click **Console Output** to view real-time logs
 
 **Expected Pipeline Flow:**
 ```
 Started by user admin
 [Pipeline] Start
 [Pipeline] node
+
 [Pipeline] stage (Git Checkout)
-  ✓ Checking out code from repository...
+  ✓ Checking out code...
   
 [Pipeline] stage (SonarQube Analysis)
   ✓ Running code quality scan...
   
-[Pipeline] stage (SonarQube Quality Gate)
-  ✓ Waiting for quality gate...
-  ✓ Quality gate passed
-  
 [Pipeline] stage (Build & Push Docker Images)
-  ✓ Building backend Docker image...
-  ✓ Building frontend Docker image...
+  ✓ Building backend image...
   ✓ Pushing to DockerHub...
   
-[Pipeline] stage (Apply Kubernetes Manifests)
-  ✓ Creating namespace media-app...
-  ✓ Deploying MongoDB...
-  ✓ Deploying Backend...
-  ✓ Deploying Frontend...
-  ✓ Deploying Monitoring stack...
-  
-[Pipeline] stage (Update Container Images)
-  ✓ Updating backend deployment...
-  ✓ Updating frontend deployment...
+[Pipeline] stage (Kubernetes Deployment)
+  ✓ Applying manifests...
   ✓ Waiting for rollouts...
   
-[Pipeline] stage (Post-Deployment Health Check)
-  ✓ Checking all pods...
-  ✓ Checking services...
-  ✓ Getting LoadBalancer URLs...
+[Pipeline] stage (Health Check)
+  ✓ Verifying deployment...
   
 [Pipeline] End
-SUCCESS - Build completed in 12m 45s
+SUCCESS
 ```
 
-### 17.10 Monitor Pipeline Execution
+### 17.8 Monitor Pipeline Execution
 
 **During Build:**
 - Watch **Console Output** for real-time progress
 - Each stage shows success ✓ or failure ✗
-- Build progress bar shows overall completion
 
 **After Build:**
-1. **Status Indicator:**
-   - ☀️ Blue/Green = Success
-   - ⛈️ Red = Failure
-   - ⚠️ Yellow = Unstable
+1. Click on the build number to view details
+2. Review **Console Output** for any errors
+3. Check **Stage View** for execution time per stage
 
-2. **Check Stage View:**
-   - Click on the build number
-   - View graphical stage breakdown
-   - See time taken for each stage
-
-3. **Review Logs:**
-   - Scroll through console output
-   - Look for errors or warnings
-   - Verify image tags and deployment status
-
-### 17.11 Verify Deployment Success
+### 17.9 Verify Deployment Success
 
 **After successful pipeline run:**
 
 ```bash
-# SSH to your EC2 instance
-ssh -i your-key.pem ec2-user@your-ec2-ip
-
 # Check EKS deployments
-kubectl get deployments -n media-app
-
-# Check if new images are deployed
-kubectl describe deployment backend -n media-app | grep Image
+kubectl get deployments -n taskmanager
 
 # Check pod status
-kubectl get pods -n media-app
+kubectl get pods -n taskmanager
 
-# View recent pod logs
-kubectl logs -n media-app deployment/backend --tail=50
-```
+# View logs
+kubectl logs -f deployment/backend -n taskmanager
 
-**Expected Output:**
+# Get service info
+kubectl get svc -n taskmanager
 ```
-NAME       READY   UP-TO-DATE   AVAILABLE   AGE
-backend    2/2     2            2           5m
-frontend   2/2     2            2           5m
-```
-
-### 17.12 Configure Pipeline Notifications (Optional)
 
 **Add Email Notifications:**
 
@@ -1498,7 +1399,7 @@ Solution:
 # Run sample queries:
 # - up (shows all targets)
 # - rate(http_requests_total[5m])
-# - nodejs_heap_size_used_bytes
+# - process_resident_memory_bytes
 ```
 
 ### 18.2 Verify Grafana Dashboards
@@ -1512,7 +1413,7 @@ Solution:
 
 # Check dashboards:
 # - Node Exporter Full (ID: 1860)
-# - Compressorr Custom Dashboard (if imported)
+# - Task Manager Custom Dashboard (if imported)
 ```
 
 ### 18.3 Monitor Application Metrics
@@ -1526,13 +1427,14 @@ Solution:
    - Network Traffic
 
 2. **Application Metrics (Backend):**
-   - HTTP Request Rate: `rate(http_requests_total[5m])`
-   - Response Time: `http_request_duration_seconds`
-   - Active Connections: `nodejs_active_handles`
-   - Memory Heap: `nodejs_heap_size_used_bytes`
+   - HTTP Request Rate
+   - Response Time
+   - Database Connections
+   - Memory Usage
 
-3. **Alerts (Optional):**
-   - Set up alerts in Grafana for high CPU, memory, or error rates
+3. **Database Metrics:**
+   - Connection Count
+   - Query Performance
 
 **Access URLs:**
 - Prometheus: `http://your-ec2-public-ip:9090`
@@ -1547,31 +1449,30 @@ Solution:
 ### Required Variables (.env file)
 
 ```bash
-# Security
-JWT_SECRET=<random-string-min-32-chars>
-SESSION_SECRET=<random-string-min-32-chars>
-
-# OAuth (Optional)
-GOOGLE_CLIENT_ID=<your-google-client-id>
-GOOGLE_CLIENT_SECRET=<your-google-client-secret>
-GOOGLE_CALLBACK_URL=http://your-domain:5000/auth/google/callback
+# Flask Configuration
+FLASK_ENV=production
+SECRET_KEY=<generate-with: python3 -c "import secrets; print(secrets.token_hex(32))">
 
 # Database
-MONGO_URI=mongodb://mongodb:27017/filetool
+POSTGRES_USER=taskmanager
+POSTGRES_PASSWORD=<strong-password-here>
+POSTGRES_DB=taskmanager_db
+DATABASE_URL=postgresql://taskmanager:<password>@postgres:5432/taskmanager_db
 
 # Server
-PORT=5000
+BACKEND_PORT=8888
+BACKEND_HOST=0.0.0.0
 NODE_ENV=production
 ```
 
 ### Generate Secure Secrets
 
 ```bash
-# Generate random JWT secret
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Generate random secret key
+python3 -c "import secrets; print(secrets.token_hex(32))"
 
-# Generate random session secret
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Generate strong password
+python3 -c "import secrets; print(secrets.token_urlsafe(16))"
 ```
 
 ---

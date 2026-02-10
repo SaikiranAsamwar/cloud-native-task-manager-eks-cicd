@@ -11,6 +11,7 @@ services:
       - "5432:5432"
 
   backend:
+    build: ./backend
     image: saikiranasamwar4/taskmanager-backend
     environment:
       - FLASK_ENV=production
@@ -25,6 +26,7 @@ services:
       - postgres
 
   frontend:
+    build: ./frontend
     image: saikiranasamwar4/taskmanager-frontend
     ports:
       - "80:80"

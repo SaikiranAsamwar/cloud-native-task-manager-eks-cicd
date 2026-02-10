@@ -55,6 +55,10 @@ def create_app():
     
     # Create database tables
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except Exception as e:
+            # Tables might already exist, which is fine
+            app.logger.warning(f"Database initialization warning: {str(e)}")
     
     return app

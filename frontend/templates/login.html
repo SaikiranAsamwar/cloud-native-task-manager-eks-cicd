@@ -291,12 +291,18 @@
               })
             });
 
-            if (!response.ok) {
-              const error = await response.json();
-              throw new Error(error.error || "Login failed");
+            // Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+              throw new Error("Server error: Unable to connect to backend API. Please ensure the backend service is running.");
             }
 
             const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.error || "Login failed");
+            }
+
             const user = data.user;
 
             // Store user data in session

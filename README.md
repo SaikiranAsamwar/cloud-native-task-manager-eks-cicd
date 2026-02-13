@@ -237,27 +237,6 @@ EOF
 
 ## 9. Jenkins Installation and Configuration
 
-✅ Docker
-✅ kubectl
-✅ eksctl
-✅ AWS CLI
-✅ Kubeconfig connected to EKS cluster
-
-👉 We **do NOT install Docker / kubectl again**
-👉 We only give Jenkins access to already installed tools
-
-So your README Jenkins section must reflect:
-
-> **Jenkins Controller = EKS Master Node (Single EC2 CI/CD Server)**
-
----
-
-# ✅ FINAL UPDATED README SECTION
-
-## 🔧 9. Jenkins Installation and Configuration (On Existing EKS Master EC2)
-
----
-
 ## 🖥️ 9.1 Pre-Requisites
 
 Jenkins will be installed on the **same Master EC2** which already has:

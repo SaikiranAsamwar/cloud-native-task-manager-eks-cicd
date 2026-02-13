@@ -5,8 +5,6 @@ pipeline {
         DOCKER_REGISTRY = 'saikiranasamwar4'
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/taskmanager-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/taskmanager-frontend"
-        SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_PROJECT_KEY = 'taskmanager-project'
     }
     
     stages {
@@ -28,14 +26,14 @@ pipeline {
             steps {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     withSonarQubeEnv('SonarQube') {
-                        sh """
+                        sh '''
                             sonar-scanner \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                            -Dsonar.projectKey=taskmanager-project \
                             -Dsonar.sources=. \
-                            -Dsonar.host.url=${SONAR_HOST_URL} \
+                            -Dsonar.host.url=http://localhost:9000 \
                             -Dsonar.login=$SONAR_TOKEN \
                             -Dsonar.exclusions=**/node_modules/**,**/*.test.js,**/venv/**
-                        """
+                        '''
                     }
                 }
             }
@@ -48,9 +46,9 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                        docker build -t ${BACKEND_IMAGE}:v1.0 .
-                        docker tag ${BACKEND_IMAGE}:v1.0 ${BACKEND_IMAGE}:${BUILD_NUMBER}
-                        docker tag ${BACKEND_IMAGE}:v1.0 ${BACKEND_IMAGE}:latest
+                        docker build -t saikiranasamwar4/taskmanager-backend:v1.0 .
+                        docker tag saikiranasamwar4/taskmanager-backend:v1.0 saikiranasamwar4/taskmanager-backend:${BUILD_NUMBER}
+                        docker tag saikiranasamwar4/taskmanager-backend:v1.0 saikiranasamwar4/taskmanager-backend:latest
                     '''
                 }
             }
@@ -63,9 +61,9 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh '''
-                        docker build -t ${FRONTEND_IMAGE}:v1.0 .
-                        docker tag ${FRONTEND_IMAGE}:v1.0 ${FRONTEND_IMAGE}:${BUILD_NUMBER}
-                        docker tag ${FRONTEND_IMAGE}:v1.0 ${FRONTEND_IMAGE}:latest
+                        docker build -t saikiranasamwar4/taskmanager-frontend:v1.0 .
+                        docker tag saikiranasamwar4/taskmanager-frontend:v1.0 saikiranasamwar4/taskmanager-frontend:${BUILD_NUMBER}
+                        docker tag saikiranasamwar4/taskmanager-frontend:v1.0 saikiranasamwar4/taskmanager-frontend:latest
                     '''
                 }
             }
@@ -95,13 +93,13 @@ pipeline {
                     sh '''
                         echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
                         
-                        docker push ${BACKEND_IMAGE}:v1.0
-                        docker push ${BACKEND_IMAGE}:${BUILD_NUMBER}
-                        docker push ${BACKEND_IMAGE}:latest
+                        docker push saikiranasamwar4/taskmanager-backend:v1.0
+                        docker push saikiranasamwar4/taskmanager-backend:${BUILD_NUMBER}
+                        docker push saikiranasamwar4/taskmanager-backend:latest
                         
-                        docker push ${FRONTEND_IMAGE}:v1.0
-                        docker push ${FRONTEND_IMAGE}:${BUILD_NUMBER}
-                        docker push ${FRONTEND_IMAGE}:latest
+                        docker push saikiranasamwar4/taskmanager-frontend:v1.0
+                        docker push saikiranasamwar4/taskmanager-frontend:${BUILD_NUMBER}
+                        docker push saikiranasamwar4/taskmanager-frontend:latest
                     '''
                 }
             }

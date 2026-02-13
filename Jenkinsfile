@@ -25,19 +25,19 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    withSonarQubeEnv('SonarQube') {
-                        sh '''
-                            sonar-scanner \
-                            -Dsonar.projectKey=taskmanager-project \
-                            -Dsonar.sources=. \
-                            -Dsonar.host.url=http://localhost:9000 \
-                            -Dsonar.login=$SONAR_TOKEN \
-                            -Dsonar.exclusions=**/node_modules/**,**/*.test.js,**/venv/**
-                        '''
-                    }
-                }
+                withSonarQubeEnv('SonarQube') {
+                sh '''
+                /usr/bin/sonar-scanner \
+                -Dsonar.projectKey=taskmanager-project \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=http://localhost:9000 \
+                -Dsonar.login=$SONAR_TOKEN
+                '''
             }
         }
+    }
+}
+
         
         // ============================================
         // STAGE 3: DOCKER BUILD BACKEND

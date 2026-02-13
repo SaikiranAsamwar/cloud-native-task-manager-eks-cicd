@@ -5,7 +5,7 @@ pipeline {
         DOCKER_REGISTRY = 'saikiranasamwar4'
         BACKEND_IMAGE = "${DOCKER_REGISTRY}/taskmanager-backend"
         FRONTEND_IMAGE = "${DOCKER_REGISTRY}/taskmanager-frontend"
-        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_HOST_URL = 'http://3.90.212.216:9000'
         SONAR_PROJECT_KEY = 'taskmanager-project'
     }
     

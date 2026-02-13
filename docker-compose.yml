@@ -9,6 +9,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskmanager"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
@@ -18,12 +23,12 @@ services:
       - SECRET_KEY=7a8f9d2e4c6b1a3e5d7f9b2c4e6a8d0f1c3e5a7b9d1f3e5c7a9b1d3f5e7a9c1b
       - DATABASE_URL=postgresql://taskmanager:P%40ssw0rd%212026SecureDB@postgres:5432/taskmanager_db
     volumes:
-      - ./backend:/app
       - backend_instance:/app/instance
     ports:
       - "8888:8888"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   frontend:
     build: ./frontend

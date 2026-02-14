@@ -144,6 +144,10 @@ pipeline {
                         # Create namespace if it doesn't exist
                         kubectl apply -f k8s/namespace.yaml
 
+                        # Clean up any stuck pods from previous failed deployments
+                        kubectl delete pods --field-selector=status.phase=Failed -n taskmanager 2>/dev/null || true
+                        kubectl delete pods --field-selector=status.phase=Unknown -n taskmanager 2>/dev/null || true
+
                         # Apply secrets
                         kubectl apply -f k8s/secrets.yaml
 
@@ -152,15 +156,16 @@ pipeline {
                         kubectl apply -f k8s/postgres-deployment.yaml
 
                         # Wait for PostgreSQL to be ready
+                        echo "Waiting for PostgreSQL to be ready..."
                         kubectl rollout status deployment/postgres -n taskmanager --timeout=300s
-
-                        # Update image tags in deployments to current build
-                        kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${BUILD_NUMBER} -n taskmanager || true
-                        kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${BUILD_NUMBER} -n taskmanager || true
 
                         # Deploy Backend and Frontend
                         kubectl apply -f k8s/backend-deployment.yaml
                         kubectl apply -f k8s/frontend-deployment.yaml
+
+                        # Update image tags to current build number
+                        kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${BUILD_NUMBER} -n taskmanager
+                        kubectl set image deployment/frontend frontend=${FRONTEND_IMAGE}:${BUILD_NUMBER} -n taskmanager
 
                         # Apply Ingress
                         kubectl apply -f k8s/ingress.yaml

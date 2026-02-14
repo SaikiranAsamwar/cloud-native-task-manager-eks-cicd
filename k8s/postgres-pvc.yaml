@@ -4,6 +4,7 @@ metadata:
   name: postgres-pvc
   namespace: taskmanager
 spec:
+  storageClassName: gp2
   accessModes:
   - ReadWriteOnce
   resources:

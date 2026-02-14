@@ -152,7 +152,7 @@ pipeline {
                         kubectl apply -f k8s/postgres-deployment.yaml
 
                         # Wait for PostgreSQL to be ready
-                        kubectl rollout status deployment/postgres -n taskmanager --timeout=120s
+                        kubectl rollout status deployment/postgres -n taskmanager --timeout=300s
 
                         # Update image tags in deployments to current build
                         kubectl set image deployment/backend backend=${BACKEND_IMAGE}:${BUILD_NUMBER} -n taskmanager || true

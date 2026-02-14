@@ -5,10 +5,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy complete app folder (includes templates/login.html)
 COPY app app
+COPY templates templates
+COPY static static
 COPY run.py .
+
+RUN apt-get update && apt-get install -y netcat-openbsd
+
+COPY wait-for-db.sh .
+RUN chmod +x wait-for-db.sh
 
 EXPOSE 8888
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8888", "--workers", "4", "--timeout", "120", "run:app"]
+CMD ["sh", "wait-for-db.sh"]

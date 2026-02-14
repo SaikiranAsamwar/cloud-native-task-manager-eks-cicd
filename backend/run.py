@@ -8,9 +8,6 @@ import os
 
 app = create_app()
 
-# 🔥 Tell Flask where templates actually are
-app.template_folder = 'app/templates'
-
 with app.app_context():
     db.create_all()
 

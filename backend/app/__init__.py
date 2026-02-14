@@ -10,8 +10,8 @@ def create_app():
 
     app = Flask(
         __name__,
-        template_folder='templates',
-        static_folder='static'
+        template_folder='../templates',
+        static_folder='../static'
     )
 
     # Database config

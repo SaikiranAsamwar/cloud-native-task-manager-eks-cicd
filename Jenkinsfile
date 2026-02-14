@@ -18,27 +18,26 @@ pipeline {
                 checkout scm
             }
         }
-        
+
         // ============================================
         // STAGE 2: SONARQUBE ANALYSIS
         // ============================================
         stage('SonarQube Analysis') {
             steps {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                withSonarQubeEnv('SonarQube') {
-                sh '''
-                /usr/bin/sonar-scanner \
-                -Dsonar.projectKey=taskmanager-project \
-                -Dsonar.sources=. \
-                -Dsonar.host.url=http://localhost:9000 \
-                -Dsonar.login=$SONAR_TOKEN
-                '''
+                    withSonarQubeEnv('SonarQube') {
+                        sh '''
+                        /usr/bin/sonar-scanner \
+                        -Dsonar.projectKey=taskmanager-project \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=http://localhost:9000 \
+                        -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
             }
         }
-    }
-}
 
-        
         // ============================================
         // STAGE 3: DOCKER BUILD BACKEND
         // ============================================
@@ -53,7 +52,7 @@ pipeline {
                 }
             }
         }
-        
+
         // ============================================
         // STAGE 4: DOCKER BUILD FRONTEND
         // ============================================
@@ -68,24 +67,51 @@ pipeline {
                 }
             }
         }
-        
+
         // ============================================
-        // STAGE 5: DOCKER TEST
+        // STAGE 5: FREE PORT 5432 (FIX)
+        // ============================================
+        stage('Free Port 5432') {
+            steps {
+                sh '''
+                echo "Stopping Host PostgreSQL if running..."
+                sudo systemctl stop postgresql || true
+                sudo systemctl disable postgresql || true
+
+                echo "Killing process using port 5432..."
+                sudo fuser -k 5432/tcp || true
+
+                echo "Cleaning previous docker containers..."
+                docker compose down || true
+                docker rm -f taskmanager-pipeline-postgres-1 || true
+                docker network prune -f || true
+                '''
+            }
+        }
+
+        // ============================================
+        // STAGE 6: DOCKER TEST
         // ============================================
         stage('Docker Test') {
             steps {
                 sh '''
                     docker compose up -d
-                    sleep 30
-                    curl -f http://localhost:80 || exit 1
+                    echo "Waiting for containers to start..."
+                    sleep 40
+
+                    echo "Testing Backend..."
                     curl -f http://localhost:8888 || exit 1
+
+                    echo "Testing Frontend..."
+                    curl -f http://localhost:80 || exit 1
+
                     docker compose down
                 '''
             }
         }
-        
+
         // ============================================
-        // STAGE 6: DOCKER PUSH
+        // STAGE 7: DOCKER PUSH
         // ============================================
         stage('Docker Push to DockerHub') {
             steps {
@@ -105,7 +131,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             sh 'docker logout || true'

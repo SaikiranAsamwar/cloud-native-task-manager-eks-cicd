@@ -1,563 +1,239 @@
-# Task Manager — Production-Ready DevOps Project
+# Task Manager — Full-Stack DevOps Project
 
-A **professional-grade** Flask + PostgreSQL task management application with complete CI/CD, Kubernetes orchestration, and monitoring. Designed for portfolio demonstration and real-world deployment scenarios.
+A production-ready Flask + PostgreSQL task management application deployed on **AWS EKS** with a complete **CI/CD pipeline**, **monitoring**, and **code quality** analysis.
 
-## 🎯 Project Overview
-
-| Component | Technology | Port |
-|-----------|-----------|------|
-| **Backend API** | Flask + Gunicorn + SQLAlchemy | 8888 |
-| **Frontend** | Nginx (static + reverse proxy) | 80 |
-| **Database** | PostgreSQL 15 | 5432 |
-| **Orchestration** | Docker Compose / Kubernetes (EKS) | - |
-| **CI/CD** | Jenkins (declarative pipeline) | 8080 |
-| **Monitoring** | Prometheus + Grafana | 9090/3000 |
-| **Code Quality** | SonarQube | 9000 |
-
-## ✅ Deployment Readiness Status
-
-**Status:** ✅ **Production-Ready** (with configuration adjustments)
-
-- ✅ Dockerized backend and frontend with multi-stage builds
-- ✅ Kubernetes manifests with health checks, resource limits, and security contexts
-- ✅ CI/CD pipeline with automated build, test, and deployment
-- ✅ Monitoring stack with Prometheus and Grafana
-- ✅ Database persistence via PVCs
-- ⚠️ **Action Required:** Update secrets before production deployment (see [Security Checklist](#security-and-best-practice-checklist))
+> **Deployment Status:** ✅ Successfully deployed and running on AWS EKS
 
 ---
 
-## 📋 Table of Contents
+## Architecture
 
-### Infrastructure Setup
-1. [EC2 Instance Setup (Amazon Linux 2023)](#1-ec2-instance-setup-amazon-linux-2023)
-2. [Basic Dependencies Installation](#2-basic-dependencies-installation)
-3. [Docker and Docker Compose Installation](#3-docker-and-docker-compose-installation)
-4. [AWS CLI Installation and Configuration](#4-aws-cli-installation-and-configuration)
-5. [Git Installation and Setup](#5-git-installation-and-setup)
-6. [EKS Cluster Setup (eksctl & kubectl)](#6-eks-cluster-setup-eksctl--kubectl)
-7. [Java Installation](#7-java-installation)
-8. [PostgreSQL Installation (Standalone)](#8-postgresql-installation-standalone)
-9. [Jenkins Installation and Configuration](#9-jenkins-installation-and-configuration)
-10. [SonarQube Installation and Setup](#10-sonarqube-installation-and-setup)
-11. [Prometheus and Grafana Installation](#11-prometheus-and-grafana-installation)
+```
+                        ┌─────────────────────────────────────────────┐
+                        │              AWS Cloud (us-east-1)          │
+                        │                                             │
+  User ──► Internet ──► │  ┌──────────┐   ┌─────────┐   ┌─────────┐ │
+                        │  │ Frontend │──►│ Backend │──►│Postgres │ │
+                        │  │ (Nginx)  │   │ (Flask) │   │  (v15)  │ │
+                        │  │ Port 80  │   │Port 8888│   │Port 5432│ │
+                        │  └──────────┘   └─────────┘   └─────────┘ │
+                        │                                             │
+                        │  ┌──────────────────────────────────────┐  │
+                        │  │ Monitoring: Prometheus + Grafana      │  │
+                        │  └──────────────────────────────────────┘  │
+                        └─────────────────────────────────────────────┘
 
-### Deployment and Operations
-12. [Application Deployment](#12-application-deployment)
-13. [Testing and Validation](#13-testing-and-validation)
-
-### Cleanup and Troubleshooting
-14. [Infrastructure Destruction](#14-infrastructure-destruction)
-15. [Common Errors and Debugging](#15-common-errors-and-debugging)
-16. [Security and Best Practice Checklist](#security-and-best-practice-checklist)
-
----
-
-## 1. EC2 Instance Setup (Amazon Linux 2023)
-
-**Launch EC2 Instance:**
-- AMI: Amazon Linux 2023
-- Instance type: t3.large (2 vCPU, 8GB RAM)
-- Storage: 30-50 GiB gp3 SSD
-- Security Group: Allow ports 22 (SSH - your IP only), 80 (HTTP), 443 (HTTPS)
-
-**Connect to Instance:**
-```bash
-chmod 400 /path/to/your-key.pem
-ssh -i /path/to/your-key.pem ec2-user@<EC2_PUBLIC_IP>
+  Jenkins (CI/CD) ──► Build ──► Test ──► Push to DockerHub ──► Deploy to EKS
+  SonarQube ──► Code Quality Analysis
 ```
 
 ---
 
-## 2. Basic Dependencies Installation
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python Flask, Gunicorn, SQLAlchemy |
+| Frontend | HTML/CSS/JS served via Nginx |
+| Database | PostgreSQL 15 (Alpine) |
+| Containerization | Docker, Docker Compose |
+| Orchestration | Kubernetes (AWS EKS) |
+| CI/CD | Jenkins (Declarative Pipeline) |
+| Code Quality | SonarQube 10.4 |
+| Monitoring | Prometheus + Grafana (Helm) |
+| Cloud | AWS (EC2, EKS, EBS, ELB) |
+
+---
+
+## Project Structure
+
+```
+├── backend/                  # Flask API application
+│   ├── app/                  # App package (models, routes)
+│   ├── Dockerfile            # Backend container image
+│   ├── config.py             # Environment configurations
+│   ├── run.py                # Gunicorn entry point
+│   └── requirements.txt      # Python dependencies
+├── frontend/                 # Static frontend + Nginx
+│   ├── templates/            # HTML pages
+│   ├── js/                   # JavaScript modules
+│   ├── css/                  # Stylesheets
+│   ├── Dockerfile            # Frontend container image
+│   └── nginx.conf            # Nginx reverse proxy config
+├── k8s/                      # Kubernetes manifests
+│   ├── namespace.yaml
+│   ├── secrets.yaml
+│   ├── postgres-pvc.yaml
+│   ├── postgres-deployment.yaml
+│   ├── backend-deployment.yaml
+│   ├── frontend-deployment.yaml
+│   └── ingress.yaml
+├── monitoring/               # Prometheus & Grafana configs
+├── jenkins/                  # Jenkins K8s deployment files
+├── docker-compose.yml        # Local multi-container setup
+└── Jenkinsfile               # CI/CD pipeline definition
+```
+
+---
+
+## CI/CD Pipeline
+
+The Jenkins pipeline automates the entire workflow:
+
+```
+Git Checkout → SonarQube Analysis → Docker Build → Docker Test → Push to DockerHub → Deploy to EKS → Deploy Monitoring
+```
+
+**Pipeline stages:**
+
+1. **Git Checkout** — Pull source code
+2. **SonarQube Analysis** — Static code analysis
+3. **Docker Build** — Build backend & frontend images
+4. **Docker Test** — Spin up containers and run health checks
+5. **Docker Push** — Push images to DockerHub (tagged with build number + latest)
+6. **Deploy to EKS** — Apply K8s manifests, wait for rollouts, deploy Prometheus + Grafana via Helm
+
+---
+
+## Prerequisites
+
+**EC2 Instance (Amazon Linux 2023):**
+- Instance type: `t3.large` (2 vCPU, 8 GB RAM)
+- Storage: 30–50 GiB gp3
+- Security Group: Ports `22`, `80`, `443`, `8080`, `9000`
+
+---
+
+## Setup Guide
+
+### 1. Install Base Dependencies
 
 ```bash
-# Update system
 sudo dnf -y update
-
-# Install essential utilities
-sudo dnf -y install git curl wget unzip vim htop net-tools jq python3 python3-pip
-
-# Enable time synchronization
-sudo systemctl enable --now chronyd
-
-# Verify installations
-git --version
-python3 --version
+sudo dnf -y install git curl wget unzip vim net-tools jq python3 python3-pip
 ```
 
----
-
-## 3. Docker and Docker Compose Installation
+### 2. Install Docker
 
 ```bash
-# Install Docker
 sudo dnf -y install docker
-
-# Start and enable Docker
 sudo systemctl enable --now docker
-
-# Add user to docker group
 sudo usermod -aG docker ec2-user
 newgrp docker
 
-# Verify Docker
-docker --version
-docker run --rm hello-world
-
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+# Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+  -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
-docker-compose --version
 ```
 
----
-
-## 4. AWS CLI Installation and Configuration
+### 3. Install AWS CLI
 
 ```bash
-# Download and install AWS CLI v2
 cd /tmp
 curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
 unzip -q awscliv2.zip
 sudo ./aws/install
-aws --version
 
-# Configure AWS credentials
 aws configure
-# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
-
-# Verify configuration
-aws sts get-caller-identity
+# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output (json)
 ```
 
----
-
-## 5. Git Installation and Setup
+### 4. Install kubectl & eksctl
 
 ```bash
-# Install Git
-sudo dnf -y install git
-git --version
+# kubectl
+curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+  -o /tmp/kubectl
+chmod +x /tmp/kubectl && sudo mv /tmp/kubectl /usr/local/bin/
 
-# Configure Git
-git config --global user.name "Your Name"
-git config --global user.email "your.email@example.com"
-git config --global init.defaultBranch main
-
-# Clone project repository
-cd ~
-git clone https://github.com/<YOUR_USERNAME>/Python-DevOps.git
-cd Python-DevOps
+# eksctl
+curl -fsSL "https://github.com/eksctl-io/eksctl/releases/download/v0.171.0/eksctl_Linux_amd64.tar.gz" \
+  | tar -xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin/
 ```
 
----
-
-## 6. EKS Cluster Setup (eksctl & kubectl)
+### 5. Create EKS Cluster
 
 ```bash
-# Install kubectl
-KUBECTL_VERSION=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
-cd /tmp
-curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o kubectl
-chmod +x kubectl
-sudo mv kubectl /usr/local/bin/
-kubectl version --client
-
-# Install eksctl
-EKSCTL_VERSION="v0.171.0"
-curl -fsSL "https://github.com/eksctl-io/eksctl/releases/download/${EKSCTL_VERSION}/eksctl_Linux_amd64.tar.gz" -o eksctl.tar.gz
-tar -xzf eksctl.tar.gz
-sudo mv eksctl /usr/local/bin/
-eksctl version
-
-# Create EKS cluster
 eksctl create cluster \
   --name taskmanager-eks \
   --region us-east-1 \
   --nodes 2 \
   --node-type t3.medium \
-  --managed \
-  --version 1.29
+  --managed
 
-# Update kubeconfig
 aws eks update-kubeconfig --name taskmanager-eks --region us-east-1
-
-# Verify cluster
 kubectl get nodes
-kubectl create namespace taskmanager
-kubectl create namespace monitoring
 ```
 
----
-
-## 7. Java Installation
+### 6. Install Java 17
 
 ```bash
-# Install Java 17 (required for Jenkins and SonarQube)
 sudo dnf -y install java-17-amazon-corretto-devel
-
-# Verify installation
-java -version
-javac -version
-
-# Set JAVA_HOME
 echo 'export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto' >> ~/.bashrc
-echo 'export PATH=$JAVA_HOME/bin:$PATH' >> ~/.bashrc
 source ~/.bashrc
 ```
 
----
-
-## 8. PostgreSQL Installation (Standalone)
-
-**Note:** For containerized deployment, PostgreSQL is included in docker-compose.yml and Kubernetes manifests. This section is optional for standalone installation.
+### 7. Install Jenkins
 
 ```bash
-# Install PostgreSQL 15
-sudo dnf -y install postgresql15 postgresql15-server postgresql15-contrib
-
-# Initialize and start
-sudo postgresql-setup --initdb
-sudo systemctl enable --now postgresql
-
-# Create database and user
-sudo -u postgres psql << 'EOF'
-ALTER USER postgres WITH PASSWORD 'your_strong_password';
-CREATE DATABASE taskmanager_db;
-CREATE USER taskmanager WITH ENCRYPTED PASSWORD 'taskmanager_password';
-GRANT ALL PRIVILEGES ON DATABASE taskmanager_db TO taskmanager;
-\c taskmanager_db
-GRANT ALL ON SCHEMA public TO taskmanager;
-\q
-EOF
-```
-
----
-
-## 9. Jenkins Installation and Configuration
-
-## 🖥️ 9.1 Pre-Requisites
-
-Jenkins will be installed on the **same Master EC2** which already has:
-
-* Docker Installed
-* kubectl Installed
-* eksctl Installed
-* AWS CLI Installed
-* IAM Role attached to access EKS Cluster
-* kubeconfig configured using:
-
-```bash
-aws eks update-kubeconfig --region <region> --name <cluster-name>
-```
-
-Verify cluster access:
-
-```bash
-kubectl get nodes
-```
-
----
-
-## ⚙️ 9.2 Install Java (Required for Jenkins)
-
-```bash
-sudo dnf install java-17-amazon-corretto -y
-java -version
-```
-
----
-
-## ⚙️ 9.3 Install Jenkins on Master EC2
-
-```bash
-sudo wget -O /etc/yum.repos.d/jenkins.repo \
-https://pkg.jenkins.io/redhat-stable/jenkins.repo
-
+sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
-
 sudo dnf install jenkins -y
+
+sudo systemctl enable --now jenkins
 ```
 
-Start Jenkins:
+**Post-install:**
 
 ```bash
-sudo systemctl enable jenkins
-sudo systemctl start jenkins
-```
-
-Check status:
-
-```bash
-sudo systemctl status jenkins
-```
-
----
-
-## 🔓 9.4 Access Jenkins Dashboard
-
-Open in browser:
-
-```
-http://<EC2_PUBLIC_IP>:8080
-```
-
-Get admin password:
-
-```bash
+# Get initial admin password
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
-```
 
-Install:
-
-```
-Install Suggested Plugins
-```
-
-Create Admin User and complete setup.
-
----
-
-## 🔑 9.5 Give Jenkins Access to Docker (Already Installed)
-
-Since Docker is already installed on Master EC2:
-
-Add Jenkins user to Docker group:
-
-```bash
+# Give Jenkins access to Docker
 sudo usermod -aG docker jenkins
 sudo chmod 666 /var/run/docker.sock
-```
 
-Restart services:
-
-```bash
-sudo systemctl restart docker
-sudo systemctl restart jenkins
-```
-
-Verify:
-
-```bash
-sudo su - jenkins
-docker ps
-```
-
----
-
-## ☸️ 9.6 Give Jenkins Access to Kubernetes Cluster
-
-Copy kubeconfig to Jenkins home:
-
-```bash
+# Give Jenkins access to Kubernetes
 sudo mkdir -p /var/lib/jenkins/.kube
 sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
 sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
-```
 
-Restart Jenkins:
-
-```bash
 sudo systemctl restart jenkins
 ```
 
-Verify:
+**Required Jenkins plugins:** Git, Pipeline, Docker Pipeline, Kubernetes CLI, Credentials Binding, SonarQube Scanner, Pipeline Stage View
+
+**Jenkins credentials to configure:**
+
+| Credential ID | Type | Purpose |
+|---------------|------|---------|
+| `dockerhub-credentials` | Username/Password | DockerHub access |
+| `sonarqube-token` | Secret Text | SonarQube auth token |
+| `aws-credentials` | AWS Credentials | EKS deployment |
+
+### 8. Install SonarQube
 
 ```bash
-sudo su - jenkins
-kubectl get nodes
-```
-
----
-
-## 📦 9.7 Install Required Jenkins Plugins
-
-Navigate:
-
-```
-Manage Jenkins → Manage Plugins → Available Plugins
-```
-
-Install:
-
-* Git
-* Pipeline
-* Docker Pipeline
-* Kubernetes
-* Kubernetes CLI
-* Credentials Binding
-* SonarQube Scanner
-* Pipeline Stage View
-
-Restart Jenkins after installation.
-
----
-
-## 🔐 9.8 Configure Jenkins Credentials
-
-Navigate:
-
-```
-Manage Jenkins → Manage Credentials → Global
-```
-
----
-
-### ➤ DockerHub Credentials
-
-| Field    | Value                  |
-| -------- | ---------------------- |
-| Kind     | Username with password |
-| ID       | dockerhub-credentials  |
-| Username | DockerHub Username     |
-| Password | DockerHub Access Token |
-
----
-
-### ➤ SonarQube Token
-
-| Field  | Value                 |
-| ------ | --------------------- |
-| Kind   | Secret Text           |
-| ID     | sonarqube-token       |
-| Secret | Generated Sonar Token |
-
----
-
-## 📊 9.9 Configure SonarQube Server in Jenkins
-
-Navigate:
-
-```
-Manage Jenkins → Configure System
-```
-
-Add SonarQube Server:
-
-| Field | Value                      |
-| ----- | -------------------------- |
-| Name  | SonarQube                  |
-| URL   | http://<SONARQUBE_IP>:9000 |
-| Token | sonarqube-token            |
-
----
-
-## 🚀 9.10 Create Jenkins Pipeline Job
-
-```
-Dashboard → New Item → Pipeline
-```
-
-Configure:
-
-| Field         | Value                                                                                                                                  |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Pipeline Name | taskmanager-pipeline                                                                                                                   |
-| Definition    | Pipeline Script from SCM                                                                                                               |
-| SCM           | Git                                                                                                                                    |
-| Repo URL      | [https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git](https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git) |
-| Branch        | */main                                                                                                                                 |
-| Script Path   | Jenkinsfile                                                                                                                            |
-
-Click **Save**
-
----
-
-## ▶️ 9.11 Run Pipeline
-
-```
-taskmanager-pipeline → Build Now
-```
-
-Pipeline will:
-
-✔ Build Docker Images
-✔ Push Images to DockerHub
-✔ Deploy to EKS Cluster using kubectl
-✔ Verify Running Pods
-
-Check deployment:
-
-```bash
-kubectl get pods -n taskmanager
-kubectl get svc -n taskmanager
-```
-
----
-
-
----
-
-# 🔟 10. SonarQube Installation, Setup & Jenkins Integration (EC2 Based – Non Docker)
-
----
-
-## 🖥️ 10.1 Install Required Dependencies
-
-SonarQube will be installed on the same **Master EC2 Instance** where Jenkins is running.
-
-```bash
-sudo dnf update -y
-sudo dnf install unzip wget java-17-amazon-corretto -y
-```
-
-Verify Java:
-
-```bash
-java -version
-```
-
----
-
-## 👤 10.2 Create SonarQube System User
-
-```bash
+# Create system user
 sudo useradd -r -M -d /opt/sonarqube -s /bin/bash sonar
-```
 
----
-
-## 📥 10.3 Download and Install SonarQube
-
-```bash
+# Download & extract
 cd /opt
 sudo wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-10.4.1.88267.zip
 sudo unzip sonarqube-10.4.1.88267.zip
 sudo mv sonarqube-10.4.1.88267 sonarqube
-```
-
-Set ownership:
-
-```bash
 sudo chown -R sonar:sonar /opt/sonarqube
-```
 
----
-
-## ⚠️ 10.4 Configure Linux Kernel Settings (Mandatory)
-
-SonarQube requires memory map and file descriptor tuning.
-
-```bash
+# Kernel tuning (required)
 echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
+echo "sonar - nofile 65536" | sudo tee -a /etc/security/limits.conf
+echo "sonar - nproc  4096"  | sudo tee -a /etc/security/limits.conf
 ```
 
-```bash
-echo "sonar   -   nofile   65536" | sudo tee -a /etc/security/limits.conf
-echo "sonar   -   nproc    4096" | sudo tee -a /etc/security/limits.conf
-```
-
----
-
-## 🔧 10.5 Create SonarQube Service
-
-```bash
-sudo nano /etc/systemd/system/sonarqube.service
-```
-
-Paste the following:
+Create systemd service at `/etc/systemd/system/sonarqube.service`:
 
 ```ini
 [Unit]
@@ -578,434 +254,159 @@ LimitNPROC=4096
 WantedBy=multi-user.target
 ```
 
----
-
-## ▶️ 10.6 Start SonarQube Service
-
-Reload daemon:
-
 ```bash
-sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
+sudo systemctl enable --now sonarqube
 ```
 
-Start SonarQube:
+Access at `http://<EC2_IP>:9000` — Default login: `admin` / `admin`
+
+**Configure in Jenkins:** `Manage Jenkins → System → SonarQube servers` — add server URL and token.
+
+### 9. Install Helm (for Monitoring)
 
 ```bash
-sudo systemctl start sonarqube
-```
-
-Enable on boot:
-
-```bash
-sudo systemctl enable sonarqube
-```
-
----
-
-## ✅ 10.7 Verify SonarQube Status
-
-Wait 1–2 minutes for SonarQube to boot.
-
-Check service:
-
-```bash
-sudo systemctl status sonarqube
-```
-
-Check API health:
-
-```bash
-curl http://localhost:9000/api/system/status
-```
-
-Expected:
-
-```json
-{"status":"UP"}
-```
-
----
-
-## 🌐 10.8 Access SonarQube Dashboard
-
-Open in browser:
-
-```
-http://<EC2_PUBLIC_IP>:9000
-```
-
-Login:
-
-```
-Username: admin
-Password: admin
-```
-
-Change password after first login.
-
----
-
-## 🔐 10.9 Create Project & Generate Token
-
-1. Click **Create Project**
-2. Select **Manual**
-3. Enter Project Name
-4. Click **Setup**
-5. Select **Locally**
-6. Generate Project Token
-7. Copy the Token (Required for Jenkins)
-
----
-
----
-
-# 🔗 10.10 Configure SonarQube in Jenkins
-
----
-
-### ➤ Add SonarQube Token in Jenkins
-
-Navigate:
-
-```
-Manage Jenkins → Manage Credentials → Global → Add Credentials
-```
-
-| Field  | Value           |
-| ------ | --------------- |
-| Kind   | Secret Text     |
-| ID     | sonarqube-token |
-| Secret | Generated Token |
-
----
-
----
-
-### ➤ Configure SonarQube Server
-
-Navigate:
-
-```
-Manage Jenkins → Configure System
-```
-
-Add SonarQube Server:
-
-| Field      | Value                                          |
-| ---------- | ---------------------------------------------- |
-| Name       | SonarQube                                      |
-| Server URL | [http://localhost:9000](http://localhost:9000) |
-| Token      | sonarqube-token                                |
-
-Click **Save**
-
----
-
----
-
-### ➤ Install SonarQube Scanner in Jenkins
-
-Navigate:
-
-```
-Manage Jenkins → Global Tool Configuration
-```
-
-Under:
-
-```
-SonarQube Scanner
-```
-
-Add:
-
-| Field                 | Value        |
-| --------------------- | ------------ |
-| Name                  | SonarScanner |
-| Install Automatically | ✓            |
-
-Click **Save**
-
----
-
-
-
-## 11. Prometheus and Grafana Installation
-
-```bash
-# Install Helm (one-time setup on Jenkins/EC2)
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-# Add Prometheus community Helm repo
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-# Install the full monitoring stack (Prometheus + Grafana + Node Exporter + Kube State Metrics)
-helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
-  --namespace monitoring --create-namespace \
-  --set grafana.service.type=LoadBalancer \
-  --set prometheus.service.type=LoadBalancer \
-  --set grafana.adminPassword=admin123 \
-  --set grafana.persistence.enabled=true \
-  --set grafana.persistence.storageClassName=gp2 \
-  --set grafana.persistence.size=5Gi \
-  --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName=gp2 \
-  --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=10Gi
-
-# Verify all monitoring pods
-kubectl get pods -n monitoring
-kubectl get svc -n monitoring
-
-# Access dashboards via LoadBalancer URLs:
-# Prometheus: http://<PROMETHEUS-ELB-URL>:9090
-# Grafana: http://<GRAFANA-ELB-URL>:3000 (admin/admin123)
-# Import dashboards: Dashboards → Import → Use IDs: 315, 8588, 6417, 1860
 ```
+
+> Prometheus + Grafana are auto-deployed by the Jenkins pipeline via Helm during the EKS deploy stage.
 
 ---
 
-## 12. Application Deployment
+## Deployment
 
-**Docker Compose (EC2):**
+### Option A: Docker Compose (Local / Single EC2)
+
 ```bash
-cd ~/Python-DevOps
-docker compose up -d --build
+git clone https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git
+cd Task-Manager-Python-DevOps
 
-# Verify
-docker compose ps
-docker compose logs -f
-curl -i http://localhost/
-curl -i http://localhost/api/health
+docker compose up -d --build
 ```
 
-**Kubernetes (EKS):**
+Verify:
 ```bash
-# Build and push images
-docker login
-docker build -t <YOUR_DOCKERHUB_USERNAME>/taskmanager-backend:v1.0 backend/
-docker build -t <YOUR_DOCKERHUB_USERNAME>/taskmanager-frontend:v1.0 frontend/
-docker push <YOUR_DOCKERHUB_USERNAME>/taskmanager-backend:v1.0
-docker push <YOUR_DOCKERHUB_USERNAME>/taskmanager-frontend:v1.0
+curl http://localhost/api/health     # Backend health
+curl http://localhost/               # Frontend
+```
 
-# Deploy to Kubernetes
+### Option B: Jenkins Pipeline (Recommended — Full CI/CD to EKS)
+
+1. Open Jenkins → **New Item** → Pipeline
+2. Set SCM to Git: `https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git`
+3. Branch: `*/main`, Script Path: `Jenkinsfile`
+4. Click **Build Now**
+
+The pipeline will build, test, push, and deploy everything automatically.
+
+### Option C: Manual Kubernetes Deployment
+
+```bash
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/secrets.yaml
 kubectl apply -f k8s/postgres-pvc.yaml
 kubectl apply -f k8s/postgres-deployment.yaml
-kubectl wait --for=condition=available --timeout=300s deployment/postgres -n taskmanager
+kubectl rollout status deployment/postgres -n taskmanager --timeout=300s
+
 kubectl apply -f k8s/backend-deployment.yaml
-kubectl wait --for=condition=available --timeout=300s deployment/backend -n taskmanager
+kubectl rollout status deployment/backend -n taskmanager --timeout=300s
+
 kubectl apply -f k8s/frontend-deployment.yaml
-kubectl wait --for=condition=available --timeout=300s deployment/frontend -n taskmanager
+kubectl rollout status deployment/frontend -n taskmanager --timeout=300s
+```
 
-# Verify
-kubectl get all -n taskmanager
+Get the application URL:
+```bash
 kubectl get svc frontend -n taskmanager
-curl http://<EXTERNAL-IP>/api/health
-```
-
-**Jenkins Pipeline:**
-Navigate to Jenkins (http://localhost:8080) → taskmanager-pipeline → Build Now. Pipeline executes: checkout, SonarQube analysis, build, test, push, and Kubernetes deployment.
-
----
-
-## 13. Testing and Validation
-
-```bash
-# Test frontend
-curl -I http://<APPLICATION_URL>/
-curl -I http://<APPLICATION_URL>/css/style.css
-
-# Test backend API
-curl -i http://<APPLICATION_URL>/api/health
-curl -i http://<APPLICATION_URL>/api/ready
-
-# Test database connectivity
-docker compose exec backend python -c "from app import db; db.create_all(); print('Database connected')"
-# For Kubernetes:
-kubectl exec -n taskmanager deployment/backend -- python -c "from app import db; db.create_all(); print('Database connected')"
-
-# Load testing (optional)
-sudo dnf -y install httpd-tools
-ab -n 100 -c 10 http://<APPLICATION_URL>/
+# Use the EXTERNAL-IP from the LoadBalancer
 ```
 
 ---
 
-## 14. Infrastructure Destruction
+## Monitoring
+
+Prometheus & Grafana are deployed via Helm (automated in the Jenkins pipeline):
 
 ```bash
-# Stop Docker Compose
-cd ~/Python-DevOps
-docker compose down -v
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  --set grafana.service.type=LoadBalancer \
+  --set prometheus.service.type=LoadBalancer \
+  --set grafana.adminPassword=admin123
+```
 
-# Delete Kubernetes resources
-kubectl delete -f k8s/frontend-deployment.yaml
-kubectl delete -f k8s/backend-deployment.yaml
-kubectl delete -f k8s/postgres-deployment.yaml
-kubectl delete -f k8s/postgres-pvc.yaml
-kubectl delete -f k8s/secrets.yaml
-kubectl delete -f k8s/namespace.yaml
+```bash
+kubectl get svc -n monitoring   # Get LoadBalancer URLs
+```
 
-# Delete monitoring stack
+- **Grafana:** `http://<GRAFANA-ELB>:3000` (admin / admin123)
+- **Prometheus:** `http://<PROMETHEUS-ELB>:9090`
+- **Recommended dashboard IDs:** 315, 8588, 6417, 1860
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Liveness probe |
+| `/api/ready` | GET | Readiness probe (checks DB) |
+| `/api/register` | POST | User registration |
+| `/api/login` | POST | User login |
+| `/api/tasks` | GET/POST | Task CRUD operations |
+| `/api/users` | GET | List users |
+
+---
+
+## Troubleshooting
+
+```bash
+# Pod status & logs
+kubectl get pods -n taskmanager
+kubectl logs <POD_NAME> -n taskmanager
+kubectl describe pod <POD_NAME> -n taskmanager
+
+# Docker Compose logs
+docker compose logs backend
+docker compose logs frontend
+
+# Port conflicts
+sudo netstat -tulpn | grep :<PORT>
+sudo fuser -k <PORT>/tcp
+
+# Restart services
+sudo systemctl restart jenkins
+sudo systemctl restart sonarqube
+sudo systemctl restart docker
+```
+
+---
+
+## Cleanup
+
+```bash
+# Delete K8s app
+kubectl delete -f k8s/ --ignore-not-found
+
+# Delete monitoring
 helm uninstall monitoring -n monitoring
-kubectl delete namespace monitoring
 
 # Delete EKS cluster
 eksctl delete cluster --name taskmanager-eks --region us-east-1
 
-# Stop Docker containers
-docker stop jenkins sonarqube
-docker rm jenkins sonarqube
-docker system prune -a --volumes -f
-
-# Terminate EC2 instance (via AWS Console or AWS CLI)
-aws ec2 terminate-instances --instance-ids i-xxxxxxxxxxxxxxxxx
-```
-
----
-
-## 15. Common Errors and Debugging
-
-**Docker Issues:**
-```bash
-# Check Docker service
-sudo systemctl status docker
-sudo systemctl start docker
-
-# Fix permissions
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Find process on port
-sudo netstat -tulpn | grep :80
-sudo kill -9 <PID>
-
-# Cleanup
+# Docker cleanup
+docker compose down -v
 docker system prune -a --volumes -f
 ```
 
-**Kubernetes Issues:**
-```bash
-# Update kubeconfig
-aws eks update-kubeconfig --name taskmanager-eks --region us-east-1
+---
 
-# Debug pods
-kubectl get pods -n taskmanager
-kubectl describe pod <POD_NAME> -n taskmanager
-kubectl logs <POD_NAME> -n taskmanager
-kubectl get events -n taskmanager --sort-by='.lastTimestamp'
+## Author
 
-# Check endpoints
-kubectl get endpoints -n taskmanager
-kubectl get svc -n taskmanager
-```
-
-**Application Issues:**
-```bash
-# Check logs
-docker compose logs backend
-kubectl logs -n taskmanager -l app=backend
-
-# Test database
-docker compose exec backend python -c "from app import db; print(db.engine.url)"
-docker compose exec postgres pg_isready
-
-# Check Nginx
-docker compose exec frontend nginx -t
-docker compose exec frontend curl -i http://backend:8888/api/health
-```
-
-**Jenkins/SonarQube Issues:**
-```bash
-# Jenkins logs
-docker logs jenkins
-docker restart jenkins
-
-# SonarQube system limits
-sudo sysctl -w vm.max_map_count=524288
-docker restart sonarqube
-docker logs sonarqube
-```
+**Saikiran Asamwar**
+- GitHub: [SaikiranAsamwar](https://github.com/SaikiranAsamwar)
+- DockerHub: [saikiranasamwar4](https://hub.docker.com/u/saikiranasamwar4)
 
 ---
 
-## Security and Best Practice Checklist
-
-### Pre-Production Security
-
-- [ ] Change all default passwords (Grafana, PostgreSQL, SonarQube)
-- [ ] Generate strong SECRET_KEY for Flask application
-- [ ] Move secrets from YAML files to AWS Secrets Manager or Parameter Store
-- [ ] Restrict Security Group rules (SSH to your IP only)
-- [ ] Close admin ports (8080, 9000, 9090, 3000) to internet
-- [ ] Enable HTTPS/TLS for all external endpoints
-- [ ] Configure SSL certificates (Let's Encrypt or ACM)
-- [ ] Set `SESSION_COOKIE_SECURE=True` in Flask config
-- [ ] Enable MFA for AWS root account and IAM users
-- [ ] Use IAM roles instead of access keys for EC2/EKS
-- [ ] Enable AWS CloudTrail for audit logging
-- [ ] Configure VPC Flow Logs
-- [ ] Enable EKS control plane logging
-- [ ] Scan Docker images for vulnerabilities (Trivy, Clair)
-- [ ] Implement network policies in Kubernetes
-- [ ] Use Pod Security Standards (restricted profile)
-- [ ] Enable RBAC with least privilege principle
-- [ ] Regularly update system packages and Docker images
-- [ ] Configure backup strategy for databases and persistent volumes
-- [ ] Set up disaster recovery plan
-- [ ] Document runbooks for common incidents
-
-### Operational Best Practices
-
-- [ ] Implement proper logging and log aggregation
-- [ ] Set up alerting for critical metrics
-- [ ] Configure health checks for all services
-- [ ] Implement auto-scaling policies
-- [ ] Use Horizontal Pod Autoscaler (HPA) in Kubernetes
-- [ ] Configure resource requests and limits
-- [ ] Implement circuit breakers and retry logic
-- [ ] Use blue-green or canary deployments
-- [ ] Tag all AWS resources for cost tracking
-- [ ] Implement cost monitoring and budgets
-- [ ] Regular security audits and penetration testing
-- [ ] Maintain documentation and keep it up-to-date
-- [ ] Version control all infrastructure code
-- [ ] Use GitOps for deployment automation
-
----
-
-## Conclusion
-
-This README provides a comprehensive guide to deploying the TaskManager application on AWS using modern DevOps practices. The infrastructure includes:
-
-✅ **Compute**: EC2 with Amazon Linux 2023, EKS for Kubernetes orchestration  
-✅ **Containerization**: Docker and Docker Compose for local/single-host deployment  
-✅ **CI/CD**: Jenkins with automated pipeline for build, test, and deployment  
-✅ **Code Quality**: SonarQube for static code analysis and quality gates  
-✅ **Monitoring**: Prometheus for metrics collection, Grafana for visualization  
-✅ **Database**: PostgreSQL for persistent data storage  
-✅ **Security**: AWS IAM, Security Groups, secrets management  
-✅ **High Availability**: Kubernetes with multiple replicas and load balancing  
-
-**Next Steps:**
-1. Follow the sections in order for first-time setup
-2. Customize configurations for your environment
-3. Implement security hardening before production deployment
-4. Set up monitoring and alerting
-5. Configure backups and disaster recovery
-6. Automate infrastructure with Terraform/CloudFormation (advanced)
-
-**Support and Contributions:**
-- Report issues in GitHub repository
-- Contribute improvements via pull requests
-- Update documentation as you discover improvements
-
-**Estimated Total Setup Time:** 2-4 hours (depending on experience level and AWS provisioning time)
-
----
-
-**Last Updated:** February 2026  
-**Maintained By:** DevOps Team  
 **License:** MIT

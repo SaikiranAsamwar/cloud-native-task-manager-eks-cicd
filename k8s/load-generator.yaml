@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: load-generator
+  namespace: taskmanager
+spec:
+  containers:
+  - name: load-generator
+    image: busybox:1.36
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      echo "Starting traffic generation..."
+      while true; do
+        # Hit health endpoint
+        wget -q -O /dev/null http://backend:8888/api/health 2>/dev/null
+        # Hit readiness endpoint
+        wget -q -O /dev/null http://backend:8888/api/ready 2>/dev/null
+        # Hit frontend
+        wget -q -O /dev/null http://frontend:80/ 2>/dev/null
+        # Hit backend root
+        wget -q -O /dev/null http://backend:8888/ 2>/dev/null
+        # Small random delay (0.2-0.5s)
+        sleep 0.3
+      done
+  restartPolicy: Always

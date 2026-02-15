@@ -175,43 +175,227 @@ echo 'export JAVA_HOME=/usr/lib/jvm/java-17-amazon-corretto' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-### 7. Install Jenkins
+### 7. Jenkins Installation and Configuration
+
+#### 7.1 Pre-Requisites
+
+Jenkins will be installed on the **same Master EC2** which already has:
+
+* Docker Installed
+* kubectl Installed
+* eksctl Installed
+* AWS CLI Installed
+* IAM Role attached to access EKS Cluster
+* kubeconfig configured using:
 
 ```bash
-sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
-sudo dnf install jenkins -y
-
-sudo systemctl enable --now jenkins
+aws eks update-kubeconfig --region <region> --name <cluster-name>
 ```
 
-**Post-install:**
+Verify cluster access:
 
 ```bash
-# Get initial admin password
-sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+kubectl get nodes
+```
 
-# Give Jenkins access to Docker
+---
+
+#### 7.2 Install Jenkins on Master EC2
+
+```bash
+sudo wget -O /etc/yum.repos.d/jenkins.repo \
+https://pkg.jenkins.io/redhat-stable/jenkins.repo
+
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+sudo dnf install jenkins -y
+```
+
+Start Jenkins:
+
+```bash
+sudo systemctl enable jenkins
+sudo systemctl start jenkins
+```
+
+Check status:
+
+```bash
+sudo systemctl status jenkins
+```
+
+---
+
+#### 7.3 Access Jenkins Dashboard
+
+Open in browser:
+
+```
+http://<EC2_PUBLIC_IP>:8080
+```
+
+Get admin password:
+
+```bash
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+
+Install suggested plugins and create an Admin User.
+
+---
+
+#### 7.4 Give Jenkins Access to Docker
+
+```bash
 sudo usermod -aG docker jenkins
 sudo chmod 666 /var/run/docker.sock
+```
 
-# Give Jenkins access to Kubernetes
-sudo mkdir -p /var/lib/jenkins/.kube
-sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
-sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
+Restart services:
 
+```bash
+sudo systemctl restart docker
 sudo systemctl restart jenkins
 ```
 
-**Required Jenkins plugins:** Git, Pipeline, Docker Pipeline, Kubernetes CLI, Credentials Binding, SonarQube Scanner, Pipeline Stage View
+Verify:
 
-**Jenkins credentials to configure:**
+```bash
+sudo su - jenkins
+docker ps
+```
 
-| Credential ID | Type | Purpose |
-|---------------|------|---------|
-| `dockerhub-credentials` | Username/Password | DockerHub access |
-| `sonarqube-token` | Secret Text | SonarQube auth token |
-| `aws-credentials` | AWS Credentials | EKS deployment |
+---
+
+#### 7.5 Give Jenkins Access to Kubernetes Cluster
+
+Copy kubeconfig to Jenkins home:
+
+```bash
+sudo mkdir -p /var/lib/jenkins/.kube
+sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
+sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
+```
+
+Restart Jenkins:
+
+```bash
+sudo systemctl restart jenkins
+```
+
+Verify:
+
+```bash
+sudo su - jenkins
+kubectl get nodes
+```
+
+---
+
+#### 7.6 Install Required Jenkins Plugins
+
+Navigate: `Manage Jenkins → Manage Plugins → Available Plugins`
+
+Install:
+
+* Git
+* Pipeline
+* Docker Pipeline
+* Kubernetes
+* Kubernetes CLI
+* Credentials Binding
+* SonarQube Scanner
+* Pipeline Stage View
+
+Restart Jenkins after installation.
+
+---
+
+#### 7.7 Configure Jenkins Credentials
+
+Navigate: `Manage Jenkins → Manage Credentials → Global`
+
+**DockerHub Credentials:**
+
+| Field | Value |
+|-------|-------|
+| Kind | Username with password |
+| ID | dockerhub-credentials |
+| Username | DockerHub Username |
+| Password | DockerHub Access Token |
+
+**SonarQube Token:**
+
+| Field | Value |
+|-------|-------|
+| Kind | Secret Text |
+| ID | sonarqube-token |
+| Secret | Generated Sonar Token |
+
+**AWS Credentials:**
+
+| Field | Value |
+|-------|-------|
+| Kind | AWS Credentials |
+| ID | aws-credentials |
+| Access Key ID | Your AWS Access Key |
+| Secret Access Key | Your AWS Secret Key |
+
+---
+
+#### 7.8 Configure SonarQube Server in Jenkins
+
+Navigate: `Manage Jenkins → Configure System`
+
+Add SonarQube Server:
+
+| Field | Value |
+|-------|-------|
+| Name | SonarQube |
+| URL | http://localhost:9000 |
+| Token | sonarqube-token |
+
+---
+
+#### 7.9 Create Jenkins Pipeline Job
+
+Navigate: `Dashboard → New Item → Pipeline`
+
+| Field | Value |
+|-------|-------|
+| Pipeline Name | taskmanager-pipeline |
+| Definition | Pipeline Script from SCM |
+| SCM | Git |
+| Repo URL | https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git |
+| Branch | */main |
+| Script Path | Jenkinsfile |
+
+Click **Save**
+
+---
+
+#### 7.10 Run Pipeline
+
+```
+taskmanager-pipeline → Build Now
+```
+
+Pipeline will:
+
+- Build Docker Images
+- Push Images to DockerHub
+- Deploy to EKS Cluster using kubectl
+- Deploy Monitoring via Helm
+- Verify Running Pods
+
+Check deployment:
+
+```bash
+kubectl get pods -n taskmanager
+kubectl get svc -n taskmanager
+```
+
+---
 
 ### 8. Install SonarQube
 

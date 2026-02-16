@@ -1,0 +1,24 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Variable override files (may contain secrets)
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# SSH keys – NEVER commit private keys
+keys/*.pem
+keys/*.key
+
+# OS junk
+.DS_Store
+Thumbs.db

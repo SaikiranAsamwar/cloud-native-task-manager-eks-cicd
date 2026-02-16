@@ -1,8 +1,72 @@
-# Task Manager — Full-Stack DevOps Project
+# End-to-End Cloud-Native Application Deployment on AWS EKS using CI/CD!
 
-A production-ready Flask + PostgreSQL task management application deployed on **AWS EKS** with a complete **CI/CD pipeline**, **monitoring**, and **code quality** analysis.
+A production-ready Flask + PostgreSQL task management application deployed on **AWS EKS** with a complete **CI/CD pipeline**, **monitoring**, and **code quality** analysis. Infrastructure is provisioned via **Terraform** (IaC).
 
 > **Deployment Status:** ✅ Successfully deployed and running on AWS EKS
+
+---
+
+## Infrastructure as Code (Terraform)
+
+All AWS infrastructure is provisioned using **Terraform** in the `terraform/` directory.
+
+### Resources Provisioned
+
+| Resource | Details |
+|----------|--------|
+| **VPC** | `10.0.0.0/16` — 3 public + 3 private subnets across `us-east-1a/b/c` |
+| **Internet Gateway** | Public internet access for public subnets |
+| **NAT Gateway** | Outbound internet for private subnets (single, cost-efficient) |
+| **EC2 Instance** | `t3.2xlarge` from private AMI — Jenkins / SonarQube / app server |
+| **EKS Cluster** | Managed Kubernetes (v1.29) with `t3.2xlarge` worker nodes |
+| **Security Groups** | Separate SGs for EC2, EKS control plane, and worker nodes |
+| **IAM Roles** | Least-privilege roles for EKS cluster and node groups |
+
+### Quick Start
+
+```bash
+cd terraform/
+
+# 1. Place your .pem key and generate the public key
+cp /path/to/your-key.pem keys/python-devops-key.pem
+ssh-keygen -y -f keys/python-devops-key.pem > keys/python-devops-key.pub
+
+# 2. Set your AMI ID in terraform.tfvars (already set if using the repo default)
+
+# 3. Deploy infrastructure
+terraform init
+terraform plan
+terraform apply
+
+# 4. SSH into the EC2 instance
+$(terraform output -raw ssh_command)
+
+# 5. Configure kubectl for EKS
+$(terraform output -raw kubeconfig_command)
+```
+
+### Terraform File Structure
+
+```
+terraform/
+├── provider.tf          # AWS provider config & optional S3 backend
+├── variables.tf         # All input variables with defaults
+├── terraform.tfvars     # Your values (AMI ID, region, sizing)
+├── vpc.tf               # VPC, subnets, IGW, NAT, route tables
+├── security-groups.tf   # Security groups for EC2 & EKS
+├── eks.tf               # EKS cluster, node group, IAM roles
+├── ec2.tf               # EC2 instance & key pair
+├── outputs.tf           # IPs, endpoints, connection commands
+├── .gitignore           # Ignores .tfstate, .pem keys, .terraform/
+└── keys/                # Place your .pem and .pub files here
+```
+
+### Tear Down Infrastructure
+
+```bash
+cd terraform/
+terraform destroy
+```
 
 ---
 
@@ -41,6 +105,7 @@ A production-ready Flask + PostgreSQL task management application deployed on **
 | CI/CD | Jenkins (Declarative Pipeline) |
 | Code Quality | SonarQube 10.4 |
 | Monitoring | Prometheus + Grafana (Helm) |
+| IaC | Terraform (VPC, EKS, EC2, SG, IAM) |
 | Cloud | AWS (EC2, EKS, EBS, ELB) |
 
 ---
@@ -70,6 +135,16 @@ A production-ready Flask + PostgreSQL task management application deployed on **
 │   └── ingress.yaml
 ├── monitoring/               # Prometheus & Grafana configs
 ├── jenkins/                  # Jenkins K8s deployment files
+├── terraform/                # Terraform IaC (VPC, EKS, EC2, SGs)
+│   ├── provider.tf
+│   ├── variables.tf
+│   ├── terraform.tfvars
+│   ├── vpc.tf
+│   ├── security-groups.tf
+│   ├── eks.tf
+│   ├── ec2.tf
+│   ├── outputs.tf
+│   └── keys/                # .pem key goes here (git-ignored)
 ├── docker-compose.yml        # Local multi-container setup
 └── Jenkinsfile               # CI/CD pipeline definition
 ```
@@ -459,7 +534,24 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 ## Deployment
 
-### Option A: Docker Compose (Local / Single EC2)
+### Option A: Terraform + Jenkins (Recommended — Full IaC + CI/CD)
+
+```bash
+# 1. Provision all AWS infrastructure
+cd terraform/
+terraform init && terraform apply
+
+# 2. SSH into the EC2 instance
+ssh -i terraform/keys/python-devops-key.pem ec2-user@$(terraform output -raw ec2_public_ip)
+
+# 3. Configure kubectl on EC2
+aws eks update-kubeconfig --region us-east-1 --name python-devops-eks
+
+# 4. Set up Jenkins (see Setup Guide § 7) and run the pipeline
+#    The pipeline handles: Build → Test → Push → Deploy to EKS → Monitoring
+```
+
+### Option B: Docker Compose (Local / Single EC2)
 
 ```bash
 git clone https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git
@@ -474,7 +566,7 @@ curl http://localhost/api/health     # Backend health
 curl http://localhost/               # Frontend
 ```
 
-### Option B: Jenkins Pipeline (Recommended — Full CI/CD to EKS)
+### Option C: Jenkins Pipeline (Full CI/CD to EKS)
 
 1. Open Jenkins → **New Item** → Pipeline
 2. Set SCM to Git: `https://github.com/SaikiranAsamwar/Task-Manager-Python-DevOps.git`
@@ -483,7 +575,7 @@ curl http://localhost/               # Frontend
 
 The pipeline will build, test, push, and deploy everything automatically.
 
-### Option C: Manual Kubernetes Deployment
+### Option D: Manual Kubernetes Deployment
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
